@@ -1,0 +1,13 @@
+# Environment Variables
+.env
+.env.local
+.env*.local
+
+# Server specific
+server/.env
+server/node_modules
+server/dist
+server/*.log
+
+# Supabase
+.supabase
