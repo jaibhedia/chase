@@ -19,10 +19,16 @@ export default function MultiplayerLobby() {
   const [isReady, setIsReady] = useState(false);
   const [isInRoom, setIsInRoom] = useState(false);
   const [error, setError] = useState('');
-  const [walletAddress] = useState(() => {
+  const [walletAddress, setWalletAddress] = useState('');
+
+  // Initialize wallet address on client side only
+  useEffect(() => {
     // Get wallet address from localStorage or generate temp ID
-    return localStorage.getItem('walletAddress') || `temp_${Math.random().toString(36).substr(2, 9)}`;
-  });
+    const address = typeof window !== 'undefined' 
+      ? localStorage.getItem('walletAddress') || `temp_${Math.random().toString(36).substr(2, 9)}`
+      : '';
+    setWalletAddress(address);
+  }, []);
 
   useEffect(() => {
     if (!socket) return;

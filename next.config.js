@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  webpack: (config) => {
+  // Disable static optimization for pages using Web3/localStorage
+  output: 'standalone',
+  
+  webpack: (config, { isServer }) => {
     config.externals.push('pino-pretty', 'lokijs', 'encoding');
     
     // Ignore React Native specific modules that aren't needed for web
@@ -13,6 +16,12 @@ const nextConfig = {
     config.ignoreWarnings = [
       { module: /node_modules\/@metamask\/sdk/ },
     ];
+    
+    // Exclude server directory
+    config.watchOptions = {
+      ...config.watchOptions,
+      ignored: ['**/node_modules', '**/server/**', '**/.git']
+    };
     
     return config;
   },

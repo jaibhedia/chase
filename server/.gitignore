@@ -11,3 +11,6 @@ server/*.log
 
 # Supabase
 .supabase
+
+.env.example
+.env.production
