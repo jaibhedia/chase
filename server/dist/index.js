@@ -334,6 +334,19 @@ io.on('connection', (socket) => {
 function generateRoomCode() {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
+// Root endpoint
+app.get('/', (req, res) => {
+    res.json({
+        name: 'Chase Game Server',
+        version: '1.0.0',
+        status: 'running',
+        endpoints: {
+            health: '/health',
+            websocket: 'Socket.io connection available'
+        },
+        message: 'Server is running successfully! Connect via Socket.io from your frontend.'
+    });
+});
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

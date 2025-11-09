@@ -6,10 +6,11 @@ import { useGameStore } from '../store/gameStore';
 import { useGameRoom } from '../hooks/useSocket';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { gameMaps } from '../data/maps';
 
 export default function MultiplayerLobby() {
   const router = useRouter();
-  const { selectedCharacter, selectedMap, gameMode } = useGameStore();
+  const { selectedCharacter, selectedMap, gameMode, setMap } = useGameStore();
   const { socket, createRoom, joinRoom, setPlayerReady } = useGameRoom();
   
   const [roomCode, setRoomCode] = useState('');
@@ -28,7 +29,12 @@ export default function MultiplayerLobby() {
       ? localStorage.getItem('walletAddress') || `temp_${Math.random().toString(36).substr(2, 9)}`
       : '';
     setWalletAddress(address);
-  }, []);
+    
+    // Auto-select default map for multiplayer if not already selected
+    if (!selectedMap) {
+      setMap(gameMaps[0]); // Default to first map (Cozy House)
+    }
+  }, [selectedMap, setMap]);
 
   useEffect(() => {
     if (!socket) return;
@@ -67,10 +73,13 @@ export default function MultiplayerLobby() {
   }, [socket, router]);
 
   const handleCreateRoom = async () => {
-    if (!selectedCharacter || !selectedMap) {
-      setError('Please select character and map first');
+    if (!selectedCharacter) {
+      setError('Please select character first');
       return;
     }
+
+    // Ensure map is selected (should be auto-selected by now)
+    const mapToUse = selectedMap || gameMaps[0];
 
     setIsCreating(true);
     setError('');
@@ -78,7 +87,7 @@ export default function MultiplayerLobby() {
     try {
       const response: any = await createRoom({
         walletAddress,
-        mapId: selectedMap.id,
+        mapId: mapToUse.id,
         gameMode: 'multiplayer',
         characterId: parseInt(selectedCharacter.id.split('-')[1]),
         playerName: selectedCharacter.name
