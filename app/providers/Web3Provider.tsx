@@ -11,10 +11,21 @@ const queryClient = new QueryClient();
 
 const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'YOUR_PROJECT_ID';
 
+// Get the current URL dynamically for metadata
+const getMetadataUrl = () => {
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  // Fallback for SSR - use Vercel URL or localhost
+  return process.env.NEXT_PUBLIC_VERCEL_URL 
+    ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
+    : 'http://localhost:3000';
+};
+
 const metadata = {
   name: 'Chase',
   description: 'A multiplayer chase game',
-  url: 'https://hideandseek.game',
+  url: getMetadataUrl(),
   icons: ['https://avatars.githubusercontent.com/u/37784886']
 };
 

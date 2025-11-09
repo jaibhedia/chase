@@ -5,14 +5,51 @@ import cors from 'cors';
 import { supabase } from './supabase';
 
 const app = express();
-app.use(cors());
+
+// CORS configuration - handle URLs with or without trailing slashes
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  process.env.CLIENT_URL?.replace(/\/$/, ''), // without trailing slash
+  'http://localhost:3000',
+  'http://localhost:3001'
+].filter(Boolean) as string[];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Normalize origin by removing trailing slash
+    const normalizedOrigin = origin.replace(/\/$/, '');
+    const isAllowed = allowedOrigins.some(allowed => 
+      allowed?.replace(/\/$/, '') === normalizedOrigin
+    );
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST']
+}));
+
 app.use(express.json());
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
-    methods: ["GET", "POST"]
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      const normalizedOrigin = origin.replace(/\/$/, '');
+      const isAllowed = allowedOrigins.some(allowed => 
+        allowed?.replace(/\/$/, '') === normalizedOrigin
+      );
+      callback(null, isAllowed);
+    },
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
