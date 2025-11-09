@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import { supabase } from '../lib/supabase';
+import { supabase } from './supabase';
 
 const app = express();
 app.use(cors());
