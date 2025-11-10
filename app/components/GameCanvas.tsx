@@ -52,6 +52,7 @@ export default function GameCanvas() {
         if (width > 0 && height > 0) {
           canvas.width = width;
           canvas.height = height;
+          console.log('Canvas resized to:', width, height);
         }
       }
     };
@@ -61,32 +62,31 @@ export default function GameCanvas() {
     window.addEventListener('resize', resizeCanvas);
 
     // Initialize the game
-    // For multiplayer, wait for server start time
-    // For single-player, start immediately
     let cleanup: (() => void) | undefined;
     
-    // Use requestAnimationFrame to ensure canvas has proper dimensions before initializing
-    requestAnimationFrame(() => {
-      // Double-check dimensions are valid
-      if (canvas.width > 0 && canvas.height > 0) {
-        if (gameMode === 'single-player') {
-          cleanup = initializeGame(canvas, ctx);
-        } else if (gameMode === 'multiplayer' && gameInitialized && serverStartTime) {
-          cleanup = initializeGame(canvas, ctx, serverStartTime);
-        }
-      } else {
-        // If still no dimensions, try one more time after a delay
-        setTimeout(() => {
-          resizeCanvas();
-          if (canvas.width > 0 && canvas.height > 0) {
-            if (gameMode === 'single-player') {
-              cleanup = initializeGame(canvas, ctx);
-            } else if (gameMode === 'multiplayer' && gameInitialized && serverStartTime) {
-              cleanup = initializeGame(canvas, ctx, serverStartTime);
-            }
-          }
-        }, 100);
+    const initGame = () => {
+      if (canvas.width === 0 || canvas.height === 0) {
+        console.log('Canvas has no dimensions yet, waiting...');
+        return;
       }
+
+      if (gameMode === 'single-player') {
+        console.log('Initializing single-player game');
+        cleanup = initializeGame(canvas, ctx);
+      } else if (gameMode === 'multiplayer') {
+        if (gameInitialized && serverStartTime) {
+          console.log('Initializing multiplayer game with server time:', serverStartTime);
+          cleanup = initializeGame(canvas, ctx, serverStartTime);
+        } else {
+          console.log('Waiting for game-started event...');
+        }
+      }
+    };
+
+    // Try to initialize after canvas is sized
+    requestAnimationFrame(() => {
+      resizeCanvas();
+      setTimeout(initGame, 50);
     });
 
     // Cleanup on unmount
