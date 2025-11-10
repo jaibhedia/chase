@@ -8,6 +8,7 @@ CREATE TABLE game_rooms (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     room_code VARCHAR(10) UNIQUE NOT NULL,
     host_id VARCHAR(255) NOT NULL,
+    host_address VARCHAR(255), -- Wallet address of the host (added for refactored backend)
     map_id VARCHAR(50) NOT NULL,
     game_mode VARCHAR(20) NOT NULL CHECK (game_mode IN ('single-player', 'multiplayer')),
     status VARCHAR(20) NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'starting', 'in-progress', 'finished')),
@@ -22,6 +23,7 @@ CREATE TABLE game_rooms (
 -- Create index on room_code for faster lookups
 CREATE INDEX idx_game_rooms_room_code ON game_rooms(room_code);
 CREATE INDEX idx_game_rooms_status ON game_rooms(status);
+CREATE INDEX idx_game_rooms_host_address ON game_rooms(host_address);
 
 -- Players in Room Table
 CREATE TABLE players_in_room (
