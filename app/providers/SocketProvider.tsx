@@ -62,6 +62,11 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         console.error('❌ Socket error:', error?.message || error);
       });
 
+      // DEBUG: Log ALL incoming events
+      socket.onAny((eventName, ...args) => {
+        console.log('📩 Received event:', eventName, args);
+      });
+
       socket.on('reconnect', (attemptNumber) => {
         console.log('🔄 Reconnected after', attemptNumber, 'attempts');
       });
@@ -100,17 +105,30 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       }
 
       console.log('📤 Emitting create-room:', data);
-      socketRef.current.emit('create-room', data);
+      
+      // Set a timeout in case backend doesn't respond
+      const timeout = setTimeout(() => {
+        console.log('⏰ Create room timeout - cleaning up listeners');
+        socketRef.current?.off('room-created');
+        socketRef.current?.off('error');
+        reject(new Error('Create room timeout - no response from server'));
+      }, 10000);
 
       socketRef.current.once('room-created', (response) => {
+        clearTimeout(timeout);
         console.log('📥 Received room-created:', response);
+        socketRef.current?.off('error');
         resolve(response);
       });
 
       socketRef.current.once('error', (error) => {
+        clearTimeout(timeout);
         console.error('❌ Room creation error:', error);
+        socketRef.current?.off('room-created');
         reject(error);
       });
+
+      socketRef.current.emit('create-room', data);
     });
   };
 
@@ -127,17 +145,38 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       }
 
       console.log('📤 Emitting join-room:', data);
-      socketRef.current.emit('join-room', data);
+      
+      // Set a timeout in case backend doesn't respond
+      const timeout = setTimeout(() => {
+        console.log('⏰ Join room timeout - cleaning up listeners');
+        socketRef.current?.off('room-joined');
+        socketRef.current?.off('player-joined');
+        socketRef.current?.off('error');
+        reject(new Error('Join room timeout - no response from server'));
+      }, 10000);
 
-      socketRef.current.once('room-joined', (response) => {
-        console.log('📥 Received room-joined:', response);
+      // Listen for BOTH possible response events from backend
+      const handleSuccess = (response: any) => {
+        clearTimeout(timeout);
+        console.log('📥 Received join response:', response);
+        socketRef.current?.off('room-joined');
+        socketRef.current?.off('player-joined');
+        socketRef.current?.off('error');
         resolve(response);
-      });
+      };
+
+      socketRef.current.once('room-joined', handleSuccess);
+      socketRef.current.once('player-joined', handleSuccess); // Fallback if backend sends this
 
       socketRef.current.once('error', (error) => {
+        clearTimeout(timeout);
         console.error('❌ Room join error:', error);
+        socketRef.current?.off('room-joined');
+        socketRef.current?.off('player-joined');
         reject(error);
       });
+
+      socketRef.current.emit('join-room', data);
     });
   };
 

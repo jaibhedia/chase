@@ -60,10 +60,10 @@ export default function MultiplayerLobby() {
       console.log(`Game starting in ${countdown} seconds...`);
     });
 
-    socket.on('game-started', ({ serverTime }) => {
-      console.log('🚀 Game started! Server time:', serverTime, 'Players:', players.length);
+    socket.on('game-started', ({ serverTime, players: gamePlayers }) => {
+      console.log('🚀 Game started! Server time:', serverTime, 'Players:', gamePlayers?.length || 0);
       setServerStartTime(serverTime); // Save to store
-      setRoomPlayers(players); // Save players to store for game initialization
+      setRoomPlayers(gamePlayers || []); // Save players to store for game initialization
       console.log('💾 Saved serverStartTime and roomPlayers to store, navigating to /game...');
       router.push('/game');
     });
@@ -76,7 +76,7 @@ export default function MultiplayerLobby() {
       socket.off('game-starting');
       socket.off('game-started');
     };
-  }, [socket, router, players.length, setServerStartTime, setRoomPlayers]);
+  }, [socket, router, setServerStartTime, setRoomPlayers]);
 
   const handleCreateRoom = async () => {
     if (!selectedCharacter) {
