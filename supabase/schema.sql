@@ -7,11 +7,12 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE game_rooms (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     room_code VARCHAR(10) UNIQUE NOT NULL,
-    host_id VARCHAR(255) NOT NULL,
-    host_address VARCHAR(255), -- Wallet address of the host (added for refactored backend)
+    host_id VARCHAR(255), -- Made nullable, transitioning to host_address
+    host_address VARCHAR(255), -- Wallet address of the host (refactored backend)
     map_id VARCHAR(50) NOT NULL,
     game_mode VARCHAR(20) NOT NULL CHECK (game_mode IN ('single-player', 'multiplayer')),
     status VARCHAR(20) NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'starting', 'in-progress', 'finished')),
+    is_public BOOLEAN DEFAULT TRUE, -- Public rooms visible in lobby, private rooms require room code
     min_players INTEGER NOT NULL DEFAULT 2,
     max_players INTEGER NOT NULL DEFAULT 4,
     current_players INTEGER NOT NULL DEFAULT 0,
@@ -24,21 +25,25 @@ CREATE TABLE game_rooms (
 CREATE INDEX idx_game_rooms_room_code ON game_rooms(room_code);
 CREATE INDEX idx_game_rooms_status ON game_rooms(status);
 CREATE INDEX idx_game_rooms_host_address ON game_rooms(host_address);
+CREATE INDEX idx_game_rooms_is_public ON game_rooms(is_public);
 
 -- Players in Room Table
 CREATE TABLE players_in_room (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    room_id UUID NOT NULL REFERENCES game_rooms(id) ON DELETE CASCADE,
+    room_id UUID REFERENCES game_rooms(id) ON DELETE CASCADE, -- Legacy, kept for compatibility
+    room_code VARCHAR(10), -- Used by refactored backend
     wallet_address VARCHAR(255) NOT NULL,
     character_id INTEGER NOT NULL,
     player_name VARCHAR(100),
     is_ready BOOLEAN DEFAULT FALSE,
+    is_host BOOLEAN DEFAULT FALSE, -- Identifies the room host
     joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(room_id, wallet_address)
 );
 
 -- Create indexes
 CREATE INDEX idx_players_room_id ON players_in_room(room_id);
+CREATE INDEX idx_players_room_code ON players_in_room(room_code);
 CREATE INDEX idx_players_wallet ON players_in_room(wallet_address);
 
 -- Game States Table (for storing real-time game state)

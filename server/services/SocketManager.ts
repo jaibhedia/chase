@@ -82,14 +82,13 @@ export class SocketManager {
 
       // Send response
       socket.emit('room-created', {
-        roomCode: result.roomCode,
-        room: result.room
+        roomCode: result.roomCode
       });
 
       // Broadcast public rooms update
       await this.broadcastPublicRooms();
 
-      console.log(`✅ Room ${result.roomCode} created by ${validated.walletAddress}`);
+      console.log(`✅ Room ${result.roomCode} created by ${validated.walletAddress.slice(0, 8)}...`);
     } catch (error: any) {
       console.error('❌ Error creating room:', error);
       socket.emit('error', { 
