@@ -117,20 +117,23 @@ io.on('connection', (socket) => {
     try {
       const roomCode = generateRoomCode();
 
+      // Prepare room data (conditionally include is_public if column exists)
+      const roomData: any = {
+        room_code: roomCode,
+        host_id: walletAddress,
+        map_id: mapId,
+        game_mode: gameMode,
+        status: 'waiting',
+        min_players: MIN_PLAYERS,
+        max_players: MAX_PLAYERS,
+        current_players: 1,
+        is_public: isPublic
+      };
+
       // Create room in database
       const { data: room, error } = await supabase
         .from('game_rooms')
-        .insert({
-          room_code: roomCode,
-          host_id: walletAddress,
-          map_id: mapId,
-          game_mode: gameMode,
-          status: 'waiting',
-          min_players: MIN_PLAYERS,
-          max_players: MAX_PLAYERS,
-          current_players: 1,
-          is_public: isPublic
-        })
+        .insert(roomData)
         .select()
         .single();
 
@@ -380,72 +383,117 @@ io.on('connection', (socket) => {
 
       io.to(roomCode).emit('player-ready-update', { players });
 
-      // Check if all players ready and minimum met
+      console.log(`Player ${walletAddress} ready in room ${roomCode}. Total: ${players?.length}, Ready: ${players?.filter(p => p.is_ready).length}`);
+    } catch (error) {
+      console.error('Error player ready:', error);
+    }
+  });
+
+  // Start game (only host can start - manual trigger)
+  socket.on('start-game', async ({ roomCode }) => {
+    try {
+      const { data: room } = await supabase
+        .from('game_rooms')
+        .select('id, host_id')
+        .eq('room_code', roomCode)
+        .single();
+
+      if (!room) {
+        socket.emit('error', { message: 'Room not found' });
+        return;
+      }
+
+      // Verify sender is host
+      if (socket.data?.walletAddress !== room.host_id) {
+        socket.emit('error', { message: 'Only host can start the game' });
+        return;
+      }
+
+      // Get all players
+      const { data: players } = await supabase
+        .from('players_in_room')
+        .select('*')
+        .eq('room_id', room.id);
+
       const allReady = players?.every(p => p.is_ready) || false;
       const enoughPlayers = (players?.length || 0) >= MIN_PLAYERS;
 
-      if (allReady && enoughPlayers) {
-        // Start countdown
-        const countdownSeconds = 5;
-        io.to(roomCode).emit('game-starting', { countdown: countdownSeconds });
+      if (!allReady) {
+        socket.emit('error', { message: 'Not all players are ready' });
+        return;
+      }
+
+      if (!enoughPlayers) {
+        socket.emit('error', { message: `Need at least ${MIN_PLAYERS} players to start` });
+        return;
+      }
+
+      // Start countdown
+      io.to(roomCode).emit('game-starting', { countdown: COUNTDOWN_SECONDS });
+      
+      console.log(`Game starting in room ${roomCode} with ${players?.length} players`);
+      
+      // Send countdown updates
+      for (let i = COUNTDOWN_SECONDS; i > 0; i--) {
+        setTimeout(() => {
+          io.to(roomCode).emit('countdown-tick', { secondsLeft: i });
+        }, (COUNTDOWN_SECONDS - i) * 1000);
+      }
+      
+      // Start game after countdown
+      setTimeout(async () => {
+        const gameStartTime = Date.now();
         
-        // Send countdown updates
-        for (let i = countdownSeconds; i > 0; i--) {
-          setTimeout(() => {
-            io.to(roomCode).emit('countdown-tick', { secondsLeft: i });
-          }, (countdownSeconds - i) * 1000);
-        }
+        await supabase
+          .from('game_rooms')
+          .update({ 
+            status: 'in-progress', 
+            started_at: new Date().toISOString() 
+          })
+          .eq('id', room.id);
+
+        // Get players for game start
+        const { data: gamePlayers } = await supabase
+          .from('players_in_room')
+          .select('*')
+          .eq('room_id', room.id);
+
+        // Send synchronized game start with server timestamp and players
+        io.to(roomCode).emit('game-started', { 
+          serverTime: gameStartTime,
+          players: gamePlayers || [],
+          gameDuration: GAME_DURATION / 1000 // in seconds
+        });
         
-        // Start game after countdown
+        console.log(`Game started in room ${roomCode}`);
+        
+        // Update public rooms list (game started, remove from public list)
+        await broadcastPublicRooms();
+        
+        // Set up game end timer
         setTimeout(async () => {
-          const gameStartTime = Date.now();
+          io.to(roomCode).emit('game-ended', {
+            serverTime: Date.now()
+          });
           
+          // Update room status
           await supabase
             .from('game_rooms')
             .update({ 
-              status: 'in-progress', 
-              started_at: new Date().toISOString() 
+              status: 'finished',
+              finished_at: new Date().toISOString()
             })
             .eq('id', room.id);
-
-          // Get players for game start
-          const { data: gamePlayers } = await supabase
-            .from('players_in_room')
-            .select('*')
-            .eq('room_id', room.id);
-
-          // Send synchronized game start with server timestamp and players
-          io.to(roomCode).emit('game-started', { 
-            serverTime: gameStartTime,
-            players: gamePlayers || [],
-            gameDuration: GAME_DURATION / 1000 // in seconds
-          });
-          
-          // Update public rooms list (game started, remove from public list)
+            
+          // Update public rooms list
           await broadcastPublicRooms();
           
-          // Set up game end timer
-          setTimeout(async () => {
-            io.to(roomCode).emit('game-ended', {
-              serverTime: Date.now()
-            });
-            
-            // Update room status
-            await supabase
-              .from('game_rooms')
-              .update({ 
-                status: 'finished',
-                finished_at: new Date().toISOString()
-              })
-              .eq('id', room.id);
-              
-            // Update public rooms list
-            await broadcastPublicRooms();
-          }, GAME_DURATION);
-        }, COUNTDOWN_SECONDS * 1000);
-      }
+          console.log(`Game ended in room ${roomCode}`);
+        }, GAME_DURATION);
+      }, COUNTDOWN_SECONDS * 1000);
     } catch (error) {
-      console.error('Error player ready:', error);
+      console.error('Error starting game:', error);
+      socket.emit('error', { message: 'Failed to start game' });
     }
   });
 
