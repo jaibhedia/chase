@@ -10,7 +10,7 @@ import { gameMaps } from '../data/maps';
 
 export default function MultiplayerLobby() {
   const router = useRouter();
-  const { selectedCharacter, selectedMap, gameMode, setMap } = useGameStore();
+  const { selectedCharacter, selectedMap, gameMode, setMap, setServerStartTime } = useGameStore();
   const { socket, createRoom, joinRoom, setPlayerReady } = useGameRoom();
   
   const [roomCode, setRoomCode] = useState('');
@@ -54,8 +54,9 @@ export default function MultiplayerLobby() {
       console.log(`Game starting in ${countdown} seconds...`);
     });
 
-    socket.on('game-started', () => {
-      console.log('Game started! Redirecting...');
+    socket.on('game-started', ({ serverTime }) => {
+      console.log('Game started! Server time:', serverTime);
+      setServerStartTime(serverTime); // Save to store
       router.push('/game');
     });
 

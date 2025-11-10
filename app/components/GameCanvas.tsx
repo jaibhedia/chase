@@ -7,9 +7,8 @@ import { useSocket } from '../hooks/useSocket';
 
 export default function GameCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { selectedMap, gameMode } = useGameStore();
+  const { selectedMap, gameMode, serverStartTime } = useGameStore();
   const socket = useSocket();
-  const [serverStartTime, setServerStartTime] = useState<number | undefined>();
   const gameInitializedRef = useRef(false);
 
   useEffect(() => {
@@ -35,44 +34,31 @@ export default function GameCanvas() {
 
     // SINGLE PLAYER: Start immediately
     if (gameMode === 'single-player' && !gameInitializedRef.current) {
+      console.log('🎮 Starting single-player game');
       requestAnimationFrame(() => {
         cleanup = initializeGame(canvas, ctx);
         gameInitializedRef.current = true;
+        console.log('✅ Single-player game initialized');
       });
     }
 
-    // MULTIPLAYER: Listen for server start event
-    if (gameMode === 'multiplayer' && socket) {
-      const handleGameStarted = ({ serverTime }: { serverTime: number }) => {
-        console.log('🎮 Multiplayer game starting with server time:', serverTime);
-        
-        if (!gameInitializedRef.current) {
-          requestAnimationFrame(() => {
-            cleanup = initializeGame(canvas, ctx, serverTime);
-            gameInitializedRef.current = true;
-            console.log('✅ Multiplayer game initialized');
-          });
-        }
-      };
-
-      socket.on('game-started', handleGameStarted);
-
-      // Cleanup
-      return () => {
-        socket.off('game-started', handleGameStarted);
-        if (cleanup) cleanup();
-        window.removeEventListener('resize', resizeCanvas);
-        gameInitializedRef.current = false;
-      };
+    // MULTIPLAYER: Use stored server start time
+    if (gameMode === 'multiplayer' && serverStartTime && !gameInitializedRef.current) {
+      console.log('🎮 Starting multiplayer game with server time:', serverStartTime);
+      requestAnimationFrame(() => {
+        cleanup = initializeGame(canvas, ctx, serverStartTime);
+        gameInitializedRef.current = true;
+        console.log('✅ Multiplayer game initialized');
+      });
     }
 
-    // Cleanup for single-player
+    // Cleanup
     return () => {
       if (cleanup) cleanup();
       window.removeEventListener('resize', resizeCanvas);
       gameInitializedRef.current = false;
     };
-  }, [selectedMap, gameMode, socket]);
+  }, [selectedMap, gameMode, serverStartTime]);
 
   return (
     <canvas

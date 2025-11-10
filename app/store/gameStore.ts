@@ -76,6 +76,7 @@ interface GameState {
   // Game results
   winner: Player | null;
   gameMessage: string;
+  serverStartTime: number | null; // For multiplayer synchronization
 
   // Actions
   setWalletAddress: (address: string | null) => void;
@@ -89,6 +90,7 @@ interface GameState {
   setTimeRemaining: (time: number) => void;
   setCountdownTimer: (time: number) => void;
   setGameResult: (winner: Player | null, message: string) => void;
+  setServerStartTime: (time: number | null) => void;
   lockCharacter: (characterId: string) => void;
   unlockCharacter: (characterId: string) => void;
   resetGame: () => void;
@@ -107,6 +109,7 @@ const initialState = {
   countdownTimer: 3,
   winner: null,
   gameMessage: '',
+  serverStartTime: null,
 };
 
 export const useGameStore = create<GameState>((set) => ({
@@ -129,6 +132,7 @@ export const useGameStore = create<GameState>((set) => ({
   setCountdownTimer: (time) => set({ countdownTimer: time }),
   setGameResult: (winner, message) =>
     set({ winner, gameMessage: message, gamePhase: 'ended' }),
+  setServerStartTime: (time) => set({ serverStartTime: time }),
   lockCharacter: (characterId) =>
     set((state) => ({
       lockedCharacters: [...state.lockedCharacters, characterId],
