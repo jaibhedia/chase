@@ -14,9 +14,6 @@ export const metadata: Metadata = {
   title: "Chase - Crypto Game",
   description: "A fast-paced multiplayer chase game with crypto wallet integration",
   viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
-  other: {
-    'screen-orientation': 'landscape',
-  }
 };
 
 export default function RootLayout({

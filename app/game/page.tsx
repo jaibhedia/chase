@@ -7,7 +7,6 @@ import { useGameStore } from '../store/gameStore';
 import GameCanvas from '../components/GameCanvas';
 import GameHUD from '../components/GameHUD';
 import MobileControls from '../components/MobileControls';
-import LandscapePrompt from '../components/LandscapePrompt';
 
 export default function Game() {
   const router = useRouter();
@@ -68,7 +67,6 @@ export default function Game() {
 
   return (
     <main className="h-screen w-screen bg-black overflow-hidden flex flex-col">
-      <LandscapePrompt />
       <GameHUD />
       <div className="flex-1 w-full overflow-hidden mt-16 md:mt-32">
         <GameCanvas />
