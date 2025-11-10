@@ -10,29 +10,7 @@ export default function GameCanvas() {
   const { selectedMap, gameMode } = useGameStore();
   const socket = useSocket();
   const [serverStartTime, setServerStartTime] = useState<number | undefined>();
-  const [gameInitialized, setGameInitialized] = useState(false);
-
-  useEffect(() => {
-    if (!socket || gameMode !== 'multiplayer') return;
-
-    // Listen for server-controlled game start
-    socket.on('game-started', ({ serverTime }: { serverTime: number }) => {
-      console.log('Game started at server time:', serverTime);
-      setServerStartTime(serverTime);
-      setGameInitialized(true);
-    });
-
-    // Listen for server-controlled game end
-    socket.on('game-ended', () => {
-      console.log('Game ended by server');
-      // The game engine will handle the end based on timer
-    });
-
-    return () => {
-      socket.off('game-started');
-      socket.off('game-ended');
-    };
-  }, [socket, gameMode]);
+  const gameInitializedRef = useRef(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -53,24 +31,48 @@ export default function GameCanvas() {
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    // Initialize the game after canvas is properly sized
     let cleanup: (() => void) | undefined;
-    
-    // Use requestAnimationFrame to ensure canvas dimensions are set
-    requestAnimationFrame(() => {
-      if (gameMode === 'single-player') {
-        cleanup = initializeGame(canvas, ctx);
-      } else if (gameMode === 'multiplayer' && gameInitialized && serverStartTime) {
-        cleanup = initializeGame(canvas, ctx, serverStartTime);
-      }
-    });
 
-    // Cleanup on unmount
+    // SINGLE PLAYER: Start immediately
+    if (gameMode === 'single-player' && !gameInitializedRef.current) {
+      requestAnimationFrame(() => {
+        cleanup = initializeGame(canvas, ctx);
+        gameInitializedRef.current = true;
+      });
+    }
+
+    // MULTIPLAYER: Listen for server start event
+    if (gameMode === 'multiplayer' && socket) {
+      const handleGameStarted = ({ serverTime }: { serverTime: number }) => {
+        console.log('🎮 Multiplayer game starting with server time:', serverTime);
+        
+        if (!gameInitializedRef.current) {
+          requestAnimationFrame(() => {
+            cleanup = initializeGame(canvas, ctx, serverTime);
+            gameInitializedRef.current = true;
+            console.log('✅ Multiplayer game initialized');
+          });
+        }
+      };
+
+      socket.on('game-started', handleGameStarted);
+
+      // Cleanup
+      return () => {
+        socket.off('game-started', handleGameStarted);
+        if (cleanup) cleanup();
+        window.removeEventListener('resize', resizeCanvas);
+        gameInitializedRef.current = false;
+      };
+    }
+
+    // Cleanup for single-player
     return () => {
       if (cleanup) cleanup();
       window.removeEventListener('resize', resizeCanvas);
+      gameInitializedRef.current = false;
     };
-  }, [selectedMap, gameMode, gameInitialized, serverStartTime]);
+  }, [selectedMap, gameMode, socket]);
 
   return (
     <canvas
