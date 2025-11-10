@@ -128,7 +128,13 @@ export default function MapSelection() {
 
   const handleMapSelect = (map: any) => {
     setMap(map);
-    router.push('/game');
+    
+    // Route based on game mode
+    if (gameMode === 'multiplayer') {
+      router.push('/multiplayer-lobby');
+    } else {
+      router.push('/game');
+    }
   };
 
   if (!gameMode || !selectedCharacter) return null;

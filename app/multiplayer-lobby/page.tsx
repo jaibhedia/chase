@@ -204,10 +204,10 @@ export default function MultiplayerLobby() {
 
           <div className="mt-8 text-center">
             <Button
-              onClick={() => router.push('/character-selection')}
+              onClick={() => router.push('/map-selection')}
               className="bg-gray-700 hover:bg-gray-600 text-white px-8 py-3"
             >
-              ← Back to Character Selection
+              ← Back to Map Selection
             </Button>
           </div>
         </div>

@@ -154,12 +154,8 @@ export default function CharacterSelection() {
     setCharacter(character);
     lockCharacter(character.id); // Lock the character
     
-    // Route to multiplayer lobby for multiplayer mode, otherwise map selection
-    if (gameMode === 'multiplayer') {
-      router.push('/multiplayer-lobby');
-    } else {
-      router.push('/map-selection');
-    }
+    // Always go to map selection after character selection
+    router.push('/map-selection');
   };
 
   if (!gameMode) return null;
