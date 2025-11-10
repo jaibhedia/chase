@@ -143,7 +143,7 @@ export default function MultiplayerLobby() {
   };
 
   const minPlayers = 2;
-  const maxPlayers = 6;
+  const maxPlayers = 4;
   const currentPlayers = players.length;
   const allReady = players.every(p => p.is_ready);
   const canStart = currentPlayers >= minPlayers && allReady;

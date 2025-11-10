@@ -135,7 +135,7 @@ const CharacterSprite = ({ character }: { character: any }) => {
 export default function CharacterSelection() {
   const router = useRouter();
   const { isConnected } = useAccount();
-  const { gameMode, setCharacter } = useGameStore();
+  const { gameMode, setCharacter, lockedCharacters, lockCharacter } = useGameStore();
 
   useEffect(() => {
     if (!isConnected) {
@@ -146,7 +146,14 @@ export default function CharacterSelection() {
   }, [isConnected, gameMode, router]);
 
   const handleCharacterSelect = (character: any) => {
+    // Check if character is already locked
+    if (lockedCharacters.includes(character.id)) {
+      return; // Don't allow selection of locked character
+    }
+    
     setCharacter(character);
+    lockCharacter(character.id); // Lock the character
+    
     // Route to multiplayer lobby for multiplayer mode, otherwise map selection
     if (gameMode === 'multiplayer') {
       router.push('/multiplayer-lobby');
@@ -205,24 +212,38 @@ export default function CharacterSelection() {
         </motion.div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {characters.map((character, index) => (
-            <motion.div
-              key={character.id}
-              initial={{ y: 50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: index * 0.1 }}
-              whileHover={{ y: -10, scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => handleCharacterSelect(character)}
-              className="relative group cursor-pointer"
-            >
-              <div 
-                className="absolute inset-0 rounded-2xl blur-xl opacity-50 group-hover:opacity-100 transition-opacity duration-300"
-                style={{ backgroundColor: character.color }}
-              />
-              <div className="relative bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-xl rounded-2xl p-6 border-4 group-hover:border-4 transition-all"
-                style={{ borderColor: `${character.color}80` }}
+          {characters.map((character, index) => {
+            const isLocked = lockedCharacters.includes(character.id);
+            
+            return (
+              <motion.div
+                key={character.id}
+                initial={{ y: 50, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: index * 0.1 }}
+                whileHover={!isLocked ? { y: -10, scale: 1.05 } : {}}
+                whileTap={!isLocked ? { scale: 0.95 } : {}}
+                onClick={() => !isLocked && handleCharacterSelect(character)}
+                className={`relative group ${isLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
               >
+                {/* Locked Overlay */}
+                {isLocked && (
+                  <div className="absolute inset-0 z-20 rounded-2xl bg-black/70 backdrop-blur-sm flex items-center justify-center border-4 border-red-500">
+                    <div className="text-center">
+                      <div className="text-6xl mb-2">🔒</div>
+                      <p className="text-red-400 font-black text-xl uppercase">Locked</p>
+                      <p className="text-gray-400 text-sm mt-1">Already Taken</p>
+                    </div>
+                  </div>
+                )}
+                
+                <div 
+                  className="absolute inset-0 rounded-2xl blur-xl opacity-50 group-hover:opacity-100 transition-opacity duration-300"
+                  style={{ backgroundColor: character.color }}
+                />
+                <div className="relative bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-xl rounded-2xl p-6 border-4 group-hover:border-4 transition-all"
+                  style={{ borderColor: `${character.color}80` }}
+                >
                 {/* Character Icon with Sprite */}
                 <motion.div
                   animate={{ 
@@ -238,7 +259,15 @@ export default function CharacterSelection() {
                 >
                   <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
                   <div className="relative z-10">
-                    <CharacterSprite character={character} />
+                    {character.image ? (
+                      <img 
+                        src={character.image} 
+                        alt={character.name}
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <CharacterSprite character={character} />
+                    )}
                   </div>
                 </motion.div>
 
@@ -289,7 +318,8 @@ export default function CharacterSelection() {
                 </motion.div>
               </div>
             </motion.div>
-          ))}
+          );
+          })}
         </div>
 
         <motion.div

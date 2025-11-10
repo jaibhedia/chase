@@ -6,6 +6,7 @@ export const characters: Character[] = [
     name: 'Skinny Flash',
     speed: 4.5,
     color: '#FF4444',
+    image: '/images/skinny-boy.png',
     powerUp: {
       name: 'Speed Trail',
       description: 'Leave a blazing trail with extreme speed',
@@ -19,6 +20,7 @@ export const characters: Character[] = [
     name: 'Fat Jumper',
     speed: 4.0,
     color: '#FF8844',
+    image: '/images/fat-guy.png',
     powerUp: {
       name: 'Earthquake Jump',
       description: 'Jump and create ground cracks that stun nearby players',
@@ -32,6 +34,7 @@ export const characters: Character[] = [
     name: 'Muscle Man',
     speed: 3.5,
     color: '#FFAA44',
+    image: '/images/muscular-guy.png',
     powerUp: {
       name: 'Hulk Punch',
       description: 'Powerful punch that throws chasers away',
@@ -45,6 +48,7 @@ export const characters: Character[] = [
     name: 'Alien Walker',
     speed: 3.0,
     color: '#44AAFF',
+    image: '/images/alien.png',
     powerUp: {
       name: 'Portal Teleport',
       description: 'Teleport randomly through a portal',
@@ -58,6 +62,7 @@ export const characters: Character[] = [
     name: 'Shadow Creep',
     speed: 2.5,
     color: '#44FF88',
+    image: '/images/creepy-guy.png',
     powerUp: {
       name: 'Invisibility',
       description: 'Become invisible for 2 seconds',
@@ -68,9 +73,10 @@ export const characters: Character[] = [
   },
   {
     id: 'char-6',
-    name: 'Dog Hybrid',
+    name: 'KBC',
     speed: 2.0,
     color: '#AA44FF',
+    image: '/images/kbc.png',
     powerUp: {
       name: 'Force Field Blast',
       description: 'Energy blast that throws everyone away',

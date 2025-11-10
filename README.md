@@ -34,7 +34,7 @@ A fast-paced **real-time multiplayer** chase game built with Next.js, Socket.io,
 
 ### Multiplayer:
 - **Testing**: 2 players minimum
-- **Production**: 6 players maximum
+- **Production**: 4 players maximum
 - Create or join rooms with unique codes
 - All players must ready up to start
 - Real-time synchronized gameplay
@@ -202,7 +202,7 @@ Each character has a unique power-up:
 ### Multiplayer Features
 
 - **Room System**: Create or join rooms with 6-character codes
-- **2-6 Players**: Minimum 2 for testing, maximum 6 for full games
+- **2-4 Players**: Minimum 2 for testing, maximum 4 for full games
 - **Ready System**: All players must ready up before game starts
 - **Real-time Sync**: Game state synchronized across all players
 - **Player Stats**: Track wins, tags, and power-up usage in database
@@ -276,7 +276,7 @@ Modify constants in `app/utils/gameEngine.ts`:
 ### Changing Player Limits
 Edit `server/index.ts`:
 - `MIN_PLAYERS`: Minimum for testing (default: 2)
-- `MAX_PLAYERS`: Maximum players (default: 6)
+- `MAX_PLAYERS`: Maximum players (default: 4)
 
 ## Documentation
 

@@ -17,6 +17,7 @@ export interface Character {
   name: string;
   speed: number;
   color: string;
+  image?: string;
   powerUp: PowerUp;
 }
 
@@ -63,6 +64,7 @@ interface GameState {
   gameMode: GameMode | null;
   selectedCharacter: Character | null;
   selectedMap: GameMap | null;
+  lockedCharacters: string[]; // Character IDs that are already taken
 
   // Game state
   gamePhase: GamePhase;
@@ -87,6 +89,8 @@ interface GameState {
   setTimeRemaining: (time: number) => void;
   setCountdownTimer: (time: number) => void;
   setGameResult: (winner: Player | null, message: string) => void;
+  lockCharacter: (characterId: string) => void;
+  unlockCharacter: (characterId: string) => void;
   resetGame: () => void;
 }
 
@@ -95,6 +99,7 @@ const initialState = {
   gameMode: null,
   selectedCharacter: null,
   selectedMap: null,
+  lockedCharacters: [] as string[],
   gamePhase: 'countdown' as GamePhase,
   players: [],
   gameObjects: [],
@@ -124,5 +129,13 @@ export const useGameStore = create<GameState>((set) => ({
   setCountdownTimer: (time) => set({ countdownTimer: time }),
   setGameResult: (winner, message) =>
     set({ winner, gameMessage: message, gamePhase: 'ended' }),
+  lockCharacter: (characterId) =>
+    set((state) => ({
+      lockedCharacters: [...state.lockedCharacters, characterId],
+    })),
+  unlockCharacter: (characterId) =>
+    set((state) => ({
+      lockedCharacters: state.lockedCharacters.filter((id) => id !== characterId),
+    })),
   resetGame: () => set(initialState),
 }));

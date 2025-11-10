@@ -12,7 +12,7 @@ CREATE TABLE game_rooms (
     game_mode VARCHAR(20) NOT NULL CHECK (game_mode IN ('single-player', 'multiplayer')),
     status VARCHAR(20) NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'starting', 'in-progress', 'finished')),
     min_players INTEGER NOT NULL DEFAULT 2,
-    max_players INTEGER NOT NULL DEFAULT 6,
+    max_players INTEGER NOT NULL DEFAULT 4,
     current_players INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     started_at TIMESTAMP WITH TIME ZONE,

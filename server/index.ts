@@ -58,8 +58,8 @@ const gameRooms = new Map();
 const playerSockets = new Map(); // wallet_address -> socket.id
 
 // Constants
-const MIN_PLAYERS = 2; // For testing
-const MAX_PLAYERS = 6; // Final version
+const MIN_PLAYERS = 2; // Minimum players to start
+const MAX_PLAYERS = 4; // Maximum 4 players for multiplayer
 
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
