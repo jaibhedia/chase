@@ -13,6 +13,7 @@ interface SocketContextType {
     gameMode: 'single-player' | 'multiplayer';
     characterId: number;
     playerName?: string;
+    isPublic?: boolean;
   }) => Promise<any>;
   joinRoom: (data: {
     roomCode: string;
@@ -97,6 +98,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     gameMode: 'single-player' | 'multiplayer';
     characterId: number;
     playerName?: string;
+    isPublic?: boolean;
   }) => {
     return new Promise((resolve, reject) => {
       if (!socketRef.current) {

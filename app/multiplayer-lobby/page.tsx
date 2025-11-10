@@ -22,7 +22,10 @@ export default function MultiplayerLobby() {
   const [error, setError] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
   const [isHost, setIsHost] = useState(false);
-  const [showMapSelection, setShowMapSelection] = useState(false); // Only show after room created for host
+  const [showMapSelection, setShowMapSelection] = useState(false);
+  const [isPublic, setIsPublic] = useState(true); // Default to public rooms
+  const [publicRooms, setPublicRooms] = useState<any[]>([]);
+  const [showPublicRooms, setShowPublicRooms] = useState(false);
 
   // Initialize wallet address on client side only
   useEffect(() => {
@@ -40,6 +43,12 @@ export default function MultiplayerLobby() {
     }
 
     console.log('🎮 Setting up lobby socket listeners');
+
+    // Listen for public rooms list
+    socket.on('public-rooms-list', (rooms: any[]) => {
+      console.log('📋 Received public rooms:', rooms);
+      setPublicRooms(rooms);
+    });
 
     // Listen for player updates
     socket.on('player-joined', ({ players: updatedPlayers, currentPlayers }) => {
@@ -70,6 +79,7 @@ export default function MultiplayerLobby() {
 
     return () => {
       console.log('🧹 Cleaning up lobby listeners (keeping socket alive)');
+      socket.off('public-rooms-list');
       socket.off('player-joined');
       socket.off('player-left');
       socket.off('player-ready-update');
@@ -77,6 +87,21 @@ export default function MultiplayerLobby() {
       socket.off('game-started');
     };
   }, [socket, router, setServerStartTime, setRoomPlayers]);
+
+  // Fetch public rooms when component mounts
+  useEffect(() => {
+    if (socket && !isInRoom) {
+      console.log('🔍 Requesting public rooms list...');
+      socket.emit('get-public-rooms');
+      
+      // Refresh public rooms every 3 seconds
+      const interval = setInterval(() => {
+        socket.emit('get-public-rooms');
+      }, 3000);
+
+      return () => clearInterval(interval);
+    }
+  }, [socket, isInRoom]);
 
   const handleCreateRoom = async () => {
     if (!selectedCharacter) {
@@ -88,13 +113,14 @@ export default function MultiplayerLobby() {
     setError('');
 
     try {
-      // Create room without map (map will be selected after)
+      // Create room with public/private setting
       const response: any = await createRoom({
         walletAddress,
-        mapId: gameMaps[0].id, // Default map, will be updated when host selects
+        mapId: gameMaps[0].id,
         gameMode: 'multiplayer',
         characterId: parseInt(selectedCharacter.id.split('-')[1]),
-        playerName: selectedCharacter.name
+        playerName: selectedCharacter.name,
+        isPublic // Pass the public/private flag
       });
 
       setRoomCode(response.roomCode);
@@ -162,6 +188,46 @@ export default function MultiplayerLobby() {
     }
   };
 
+  const handleJoinPublicRoom = async (publicRoomCode: string) => {
+    if (!selectedCharacter) {
+      setError('Please select a character first');
+      return;
+    }
+
+    setRoomCode(publicRoomCode);
+    setIsJoining(true);
+    setError('');
+
+    try {
+      const response: any = await joinRoom({
+        roomCode: publicRoomCode,
+        walletAddress,
+        characterId: parseInt(selectedCharacter.id.split('-')[1]),
+        playerName: selectedCharacter.name
+      });
+
+      setIsInRoom(true);
+      
+      if (response.players) {
+        console.log('🎮 Joined public room, players:', response.players);
+        setPlayers(response.players);
+      }
+      
+      if (response.room?.map_id) {
+        const map = gameMaps.find(m => m.id === response.room.map_id);
+        if (map) {
+          setMap(map);
+        }
+      }
+      
+      console.log('Joined public room:', publicRoomCode);
+    } catch (err: any) {
+      setError(err.message || 'Failed to join public room');
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
   const handleToggleReady = () => {
     if (!isReady && roomCode) {
       setPlayerReady(roomCode, walletAddress);
@@ -222,18 +288,37 @@ export default function MultiplayerLobby() {
   if (!isInRoom) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#0f0c29] via-[#302b63] to-[#24243e] flex items-center justify-center p-4">
-        <div className="w-full max-w-4xl">
+        <div className="w-full max-w-6xl">
           <h1 className="text-4xl font-bold text-white text-center mb-8">
             Multiplayer Lobby
           </h1>
 
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid md:grid-cols-3 gap-6 mb-8">
             {/* Create Room */}
             <Card className="p-6 bg-black/40 border-2 border-purple-500/30">
               <h2 className="text-2xl font-bold text-white mb-4">Create Room</h2>
-              <p className="text-gray-300 mb-6">
-                Host a new game and share the room code with friends
+              <p className="text-gray-300 mb-4">
+                Host a new game
               </p>
+              
+              {/* Public/Private Toggle */}
+              <div className="mb-6">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isPublic}
+                    onChange={(e) => setIsPublic(e.target.checked)}
+                    className="w-5 h-5 accent-purple-500"
+                  />
+                  <span className="text-white font-semibold">
+                    🌍 Public Room
+                  </span>
+                </label>
+                <p className="text-gray-400 text-xs mt-1 ml-8">
+                  {isPublic ? 'Anyone can join without code' : 'Private - requires room code'}
+                </p>
+              </div>
+              
               <Button
                 onClick={handleCreateRoom}
                 disabled={isCreating}
@@ -245,9 +330,9 @@ export default function MultiplayerLobby() {
 
             {/* Join Room */}
             <Card className="p-6 bg-black/40 border-2 border-blue-500/30">
-              <h2 className="text-2xl font-bold text-white mb-4">Join Room</h2>
+              <h2 className="text-2xl font-bold text-white mb-4">Join with Code</h2>
               <p className="text-gray-300 mb-4">
-                Enter a room code to join an existing game
+                Enter a room code to join a private game
               </p>
               <input
                 type="text"
@@ -265,7 +350,79 @@ export default function MultiplayerLobby() {
                 {isJoining ? 'Joining...' : 'Join Room'}
               </Button>
             </Card>
+
+            {/* Public Rooms */}
+            <Card className="p-6 bg-black/40 border-2 border-green-500/30">
+              <h2 className="text-2xl font-bold text-white mb-4">Public Rooms</h2>
+              <p className="text-gray-300 mb-4">
+                Join any public game
+              </p>
+              <div className="text-center">
+                <div className="text-4xl font-bold text-green-400 mb-2">
+                  {publicRooms.length}
+                </div>
+                <p className="text-gray-400 text-sm mb-4">
+                  {publicRooms.length === 1 ? 'room available' : 'rooms available'}
+                </p>
+                <Button
+                  onClick={() => setShowPublicRooms(!showPublicRooms)}
+                  className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-6 text-lg"
+                >
+                  {showPublicRooms ? 'Hide Rooms' : 'Show Rooms'}
+                </Button>
+              </div>
+            </Card>
           </div>
+
+          {/* Public Rooms List */}
+          {showPublicRooms && publicRooms.length > 0 && (
+            <Card className="p-6 bg-black/40 border-2 border-green-500/30 mb-6">
+              <h3 className="text-xl font-bold text-white mb-4">Available Public Rooms</h3>
+              <div className="grid md:grid-cols-2 gap-4">
+                {publicRooms.map((room) => (
+                  <Card
+                    key={room.room_code}
+                    className="p-4 bg-black/50 border-2 border-gray-700 hover:border-green-400 transition-all cursor-pointer"
+                    onClick={() => handleJoinPublicRoom(room.room_code)}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-2xl font-bold text-white">{room.room_code}</span>
+                      <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                        room.current_players >= 4 ? 'bg-red-500/20 text-red-400' :
+                        room.current_players >= 2 ? 'bg-yellow-500/20 text-yellow-400' :
+                        'bg-green-500/20 text-green-400'
+                      }`}>
+                        {room.current_players}/4 Players
+                      </span>
+                    </div>
+                    {room.map_id && (
+                      <p className="text-gray-400 text-sm">
+                        Map: {gameMaps.find(m => m.id === room.map_id)?.name || 'Unknown'}
+                      </p>
+                    )}
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleJoinPublicRoom(room.room_code);
+                      }}
+                      disabled={isJoining || room.current_players >= 4}
+                      className="w-full mt-3 bg-green-600 hover:bg-green-700 text-white font-bold py-2"
+                    >
+                      {room.current_players >= 4 ? 'Full' : 'Join →'}
+                    </Button>
+                  </Card>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {showPublicRooms && publicRooms.length === 0 && (
+            <Card className="p-6 bg-black/40 border-2 border-gray-700 mb-6">
+              <p className="text-gray-400 text-center">
+                No public rooms available. Create one to get started!
+              </p>
+            </Card>
+          )}
 
           {error && (
             <div className="mt-6 p-4 bg-red-500/20 border-2 border-red-500 rounded-lg">
