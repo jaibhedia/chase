@@ -493,6 +493,12 @@ io.on('connection', (socket) => {
       console.log(`✅ Player ${walletAddress.slice(0, 8)} ready in room ${roomCode}`);
       console.log(`   Ready: ${readyCount}/${totalCount}`);
       console.log(`   Players:`, players?.map(p => `${p.wallet_address.slice(0, 8)}${p.is_ready ? '✓' : '○'}`));
+      console.log(`   Broadcasting player list:`, JSON.stringify(players?.map(p => ({
+        wallet: p.wallet_address.slice(0, 8),
+        ready: p.is_ready,
+        character: p.character_id,
+        name: p.player_name
+      }))));
 
       // Broadcast to ALL players in room
       io.in(roomCode).emit('player-ready-update', { 
