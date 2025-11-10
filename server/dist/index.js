@@ -9,45 +9,123 @@ const socket_io_1 = require("socket.io");
 const cors_1 = __importDefault(require("cors"));
 const supabase_1 = require("./supabase");
 const app = (0, express_1.default)();
-app.use((0, cors_1.default)());
+// CORS configuration
+const allowedOrigins = [
+    process.env.CLIENT_URL,
+    process.env.CLIENT_URL?.replace(/\/$/, ''),
+    'http://localhost:3000',
+    'http://localhost:3001'
+].filter(Boolean);
+app.use((0, cors_1.default)({
+    origin: function (origin, callback) {
+        if (!origin)
+            return callback(null, true);
+        const normalizedOrigin = origin.replace(/\/$/, '');
+        const isAllowed = allowedOrigins.some(allowed => allowed?.replace(/\/$/, '') === normalizedOrigin);
+        callback(null, isAllowed || false);
+    },
+    credentials: true,
+    methods: ['GET', 'POST']
+}));
 app.use(express_1.default.json());
 const httpServer = (0, http_1.createServer)(app);
 const io = new socket_io_1.Server(httpServer, {
     cors: {
-        origin: process.env.CLIENT_URL || "http://localhost:3000",
-        methods: ["GET", "POST"]
+        origin: function (origin, callback) {
+            if (!origin)
+                return callback(null, true);
+            const normalizedOrigin = origin.replace(/\/$/, '');
+            const isAllowed = allowedOrigins.some(allowed => allowed?.replace(/\/$/, '') === normalizedOrigin);
+            callback(null, isAllowed || false);
+        },
+        methods: ["GET", "POST"],
+        credentials: true
     }
 });
-// Game rooms storage (in-memory for now, can move to Redis later)
-const gameRooms = new Map();
-const playerSockets = new Map(); // wallet_address -> socket.id
 // Constants
-const MIN_PLAYERS = 2; // For testing
-const MAX_PLAYERS = 6; // Final version
+const MIN_PLAYERS = 2;
+const MAX_PLAYERS = 4;
+const GAME_DURATION = 30000; // 30 seconds
+const COUNTDOWN_SECONDS = 5;
+// Helper: Broadcast public rooms to all connected clients
+async function broadcastPublicRooms() {
+    try {
+        const { data: publicRooms } = await supabase_1.supabase
+            .from('game_rooms')
+            .select('room_code, current_players, max_players, map_id, is_public')
+            .eq('status', 'waiting')
+            .eq('is_public', true)
+            .order('created_at', { ascending: false });
+        io.emit('public-rooms-list', publicRooms || []);
+    }
+    catch (error) {
+        console.error('Error broadcasting public rooms:', error);
+    }
+}
+// Helper: Get and broadcast room data
+async function broadcastRoomUpdate(roomCode) {
+    try {
+        const { data: room } = await supabase_1.supabase
+            .from('game_rooms')
+            .select('id, current_players, max_players')
+            .eq('room_code', roomCode)
+            .single();
+        if (!room)
+            return;
+        const { data: players } = await supabase_1.supabase
+            .from('players_in_room')
+            .select('*')
+            .eq('room_id', room.id);
+        io.to(roomCode).emit('room-update', {
+            players: players || [],
+            currentPlayers: room.current_players,
+            maxPlayers: room.max_players
+        });
+        // Update public rooms list for everyone
+        await broadcastPublicRooms();
+    }
+    catch (error) {
+        console.error('Error broadcasting room update:', error);
+    }
+}
 io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
-    // Join room
-    socket.on('join-room', async ({ roomCode, walletAddress, characterId, playerName }) => {
+    // Send public rooms list on connect
+    broadcastPublicRooms();
+    // Get public rooms
+    socket.on('get-public-rooms', async () => {
+        await broadcastPublicRooms();
+    });
+    // Get public rooms
+    socket.on('get-public-rooms', async () => {
+        await broadcastPublicRooms();
+    });
+    // Create room
+    socket.on('create-room', async ({ walletAddress, mapId, gameMode, characterId, playerName, isPublic = true }) => {
         try {
-            // Check if room exists in Supabase
+            const roomCode = generateRoomCode();
+            // Create room in database
             const { data: room, error } = await supabase_1.supabase
                 .from('game_rooms')
-                .select('*')
-                .eq('room_code', roomCode)
+                .insert({
+                room_code: roomCode,
+                host_id: walletAddress,
+                map_id: mapId,
+                game_mode: gameMode,
+                status: 'waiting',
+                min_players: MIN_PLAYERS,
+                max_players: MAX_PLAYERS,
+                current_players: 1,
+                is_public: isPublic
+            })
+                .select()
                 .single();
             if (error || !room) {
-                socket.emit('error', { message: 'Room not found' });
+                console.error('Room creation error:', error);
+                socket.emit('error', { message: 'Failed to create room' });
                 return;
             }
-            if (room.status !== 'waiting') {
-                socket.emit('error', { message: 'Room already started' });
-                return;
-            }
-            if (room.current_players >= room.max_players) {
-                socket.emit('error', { message: 'Room is full' });
-                return;
-            }
-            // Add player to room in Supabase
+            // Add host as first player
             const { error: playerError } = await supabase_1.supabase
                 .from('players_in_room')
                 .insert({
@@ -58,39 +136,124 @@ io.on('connection', (socket) => {
                 is_ready: false
             });
             if (playerError) {
-                socket.emit('error', { message: 'Failed to join room' });
+                console.error('Add player error:', playerError);
+                await supabase_1.supabase.from('game_rooms').delete().eq('id', room.id);
+                socket.emit('error', { message: 'Failed to add player to room' });
                 return;
             }
-            // Update room player count
-            await supabase_1.supabase
-                .from('game_rooms')
-                .update({ current_players: room.current_players + 1 })
-                .eq('id', room.id);
             // Join socket room
             socket.join(roomCode);
-            playerSockets.set(walletAddress, socket.id);
-            // Store player info in socket
-            socket.data = {
-                roomCode,
-                walletAddress,
-                characterId,
-                playerName
-            };
-            // Get all players in room
+            socket.data = { roomCode, walletAddress, characterId, playerName, isHost: true };
+            // Get players for response
             const { data: players } = await supabase_1.supabase
                 .from('players_in_room')
                 .select('*')
                 .eq('room_id', room.id);
-            // Notify room
+            // Send response to creator
+            socket.emit('room-created', {
+                roomCode,
+                room,
+                players: players || []
+            });
+            console.log(`Room ${roomCode} created by ${walletAddress} (${isPublic ? 'PUBLIC' : 'PRIVATE'})`);
+            // Broadcast public rooms list to all
+            await broadcastPublicRooms();
+        }
+        catch (error) {
+            console.error('Error creating room:', error);
+            socket.emit('error', { message: 'Server error creating room' });
+        }
+    });
+    // Join room
+    socket.on('join-room', async ({ roomCode, walletAddress, characterId, playerName }) => {
+        try {
+            // Get room
+            const { data: room, error } = await supabase_1.supabase
+                .from('game_rooms')
+                .select('*')
+                .eq('room_code', roomCode)
+                .single();
+            if (error || !room) {
+                socket.emit('error', { message: 'Room not found' });
+                return;
+            }
+            if (room.status !== 'waiting') {
+                socket.emit('error', { message: 'Game already started' });
+                return;
+            }
+            if (room.current_players >= room.max_players) {
+                socket.emit('error', { message: 'Room is full' });
+                return;
+            }
+            // Check if player already in room
+            const { data: existingPlayer } = await supabase_1.supabase
+                .from('players_in_room')
+                .select('*')
+                .eq('room_id', room.id)
+                .eq('wallet_address', walletAddress)
+                .single();
+            if (existingPlayer) {
+                // Player reconnecting - just join socket room
+                socket.join(roomCode);
+                socket.data = { roomCode, walletAddress, characterId, playerName };
+                const { data: players } = await supabase_1.supabase
+                    .from('players_in_room')
+                    .select('*')
+                    .eq('room_id', room.id);
+                socket.emit('room-joined', {
+                    room,
+                    players: players || [],
+                    reconnected: true
+                });
+                console.log(`Player ${walletAddress} reconnected to room ${roomCode}`);
+                return;
+            }
+            // Add new player
+            const { error: playerError } = await supabase_1.supabase
+                .from('players_in_room')
+                .insert({
+                room_id: room.id,
+                wallet_address: walletAddress,
+                character_id: characterId,
+                player_name: playerName || `Player ${walletAddress.slice(0, 6)}`,
+                is_ready: false
+            });
+            if (playerError) {
+                console.error('Join room player error:', playerError);
+                socket.emit('error', { message: 'Failed to join room' });
+                return;
+            }
+            // Update room player count
+            const newCount = room.current_players + 1;
+            await supabase_1.supabase
+                .from('game_rooms')
+                .update({ current_players: newCount })
+                .eq('id', room.id);
+            // Join socket room
+            socket.join(roomCode);
+            socket.data = { roomCode, walletAddress, characterId, playerName };
+            // Get all players
+            const { data: players } = await supabase_1.supabase
+                .from('players_in_room')
+                .select('*')
+                .eq('room_id', room.id);
+            // Send to joiner
+            socket.emit('room-joined', {
+                room,
+                players: players || []
+            });
+            // Broadcast to everyone in room
             io.to(roomCode).emit('player-joined', {
-                players,
-                currentPlayers: room.current_players + 1
+                players: players || [],
+                currentPlayers: newCount
             });
             console.log(`Player ${walletAddress} joined room ${roomCode}`);
+            // Update public rooms list
+            await broadcastPublicRooms();
         }
         catch (error) {
             console.error('Error joining room:', error);
-            socket.emit('error', { message: 'Server error' });
+            socket.emit('error', { message: 'Server error joining room' });
         }
     });
     // Create room
@@ -128,7 +291,6 @@ io.on('connection', (socket) => {
             });
             // Join socket room
             socket.join(roomCode);
-            playerSockets.set(walletAddress, socket.id);
             socket.data = {
                 roomCode,
                 walletAddress,
@@ -174,14 +336,54 @@ io.on('connection', (socket) => {
             const enoughPlayers = (players?.length || 0) >= MIN_PLAYERS;
             if (allReady && enoughPlayers) {
                 // Start countdown
-                io.to(roomCode).emit('game-starting', { countdown: 5 });
+                const countdownSeconds = 5;
+                io.to(roomCode).emit('game-starting', { countdown: countdownSeconds });
+                // Send countdown updates
+                for (let i = countdownSeconds; i > 0; i--) {
+                    setTimeout(() => {
+                        io.to(roomCode).emit('countdown-tick', { secondsLeft: i });
+                    }, (countdownSeconds - i) * 1000);
+                }
+                // Start game after countdown
                 setTimeout(async () => {
+                    const gameStartTime = Date.now();
                     await supabase_1.supabase
                         .from('game_rooms')
-                        .update({ status: 'in-progress', started_at: new Date().toISOString() })
+                        .update({
+                        status: 'in-progress',
+                        started_at: new Date().toISOString()
+                    })
                         .eq('id', room.id);
-                    io.to(roomCode).emit('game-started');
-                }, 5000);
+                    // Get players for game start
+                    const { data: gamePlayers } = await supabase_1.supabase
+                        .from('players_in_room')
+                        .select('*')
+                        .eq('room_id', room.id);
+                    // Send synchronized game start with server timestamp and players
+                    io.to(roomCode).emit('game-started', {
+                        serverTime: gameStartTime,
+                        players: gamePlayers || [],
+                        gameDuration: GAME_DURATION / 1000 // in seconds
+                    });
+                    // Update public rooms list (game started, remove from public list)
+                    await broadcastPublicRooms();
+                    // Set up game end timer
+                    setTimeout(async () => {
+                        io.to(roomCode).emit('game-ended', {
+                            serverTime: Date.now()
+                        });
+                        // Update room status
+                        await supabase_1.supabase
+                            .from('game_rooms')
+                            .update({
+                            status: 'finished',
+                            finished_at: new Date().toISOString()
+                        })
+                            .eq('id', room.id);
+                        // Update public rooms list
+                        await broadcastPublicRooms();
+                    }, GAME_DURATION);
+                }, COUNTDOWN_SECONDS * 1000);
             }
         }
         catch (error) {
@@ -281,7 +483,6 @@ io.on('connection', (socket) => {
         console.log('Player disconnected:', socket.id);
         if (socket.data?.walletAddress) {
             const { roomCode, walletAddress } = socket.data;
-            playerSockets.delete(walletAddress);
             if (roomCode) {
                 try {
                     const { data: room } = await supabase_1.supabase
@@ -308,6 +509,7 @@ io.on('connection', (socket) => {
                                 .from('game_rooms')
                                 .delete()
                                 .eq('id', room.id);
+                            console.log(`Room ${roomCode} deleted (empty)`);
                         }
                         else {
                             // Notify others
@@ -321,6 +523,8 @@ io.on('connection', (socket) => {
                                 currentPlayers: newCount
                             });
                         }
+                        // Update public rooms list
+                        await broadcastPublicRooms();
                     }
                 }
                 catch (error) {
