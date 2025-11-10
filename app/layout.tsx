@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Web3Provider } from "./providers/Web3Provider";
+import { SocketProvider } from "./providers/SocketProvider";
 import { AudioInitializer } from "./components/AudioInitializer";
 import { Analytics } from "@vercel/analytics/react";
 
@@ -38,9 +39,11 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <Web3Provider>
-          <AudioInitializer />
-          {children}
-          <Analytics />
+          <SocketProvider>
+            <AudioInitializer />
+            {children}
+            <Analytics />
+          </SocketProvider>
         </Web3Provider>
       </body>
     </html>

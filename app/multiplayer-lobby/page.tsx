@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameStore } from '../store/gameStore';
-import { useGameRoom } from '../hooks/useSocket';
+import { useSocket } from '../providers/SocketProvider';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { gameMaps } from '../data/maps';
@@ -11,7 +11,7 @@ import { gameMaps } from '../data/maps';
 export default function MultiplayerLobby() {
   const router = useRouter();
   const { selectedCharacter, selectedMap, gameMode, setMap, setServerStartTime, setRoomPlayers } = useGameStore();
-  const { socket, createRoom, joinRoom, setPlayerReady } = useGameRoom();
+  const { socket, createRoom, joinRoom, setPlayerReady } = useSocket();
   
   const [roomCode, setRoomCode] = useState('');
   const [isCreating, setIsCreating] = useState(false);

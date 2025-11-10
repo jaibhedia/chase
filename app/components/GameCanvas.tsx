@@ -3,12 +3,12 @@
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { initializeGame } from '../utils/gameEngine';
-import { useSocket } from '../hooks/useSocket';
+import { useSocket } from '../providers/SocketProvider';
 
 export default function GameCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { selectedMap, gameMode, serverStartTime, setPlayers } = useGameStore();
-  const socket = useSocket();
+  const { socket } = useSocket();
   const gameInitializedRef = useRef(false);
 
   // Listen for multiplayer game state updates
