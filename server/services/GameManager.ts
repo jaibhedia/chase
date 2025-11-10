@@ -70,7 +70,8 @@ export class GameManager {
         .from('game_rooms')
         .insert({
           room_code: roomCode,
-          host_address: data.walletAddress,
+          host_id: data.walletAddress, // Required NOT NULL column
+          host_address: data.walletAddress, // New column for wallet tracking
           map_id: data.mapId,
           game_mode: data.gameMode,
           status: 'waiting',

@@ -8,11 +8,15 @@ ALTER TABLE game_rooms ADD COLUMN IF NOT EXISTS host_address VARCHAR(255);
 -- Copy data from host_id to host_address (if host_id contains wallet addresses)
 UPDATE game_rooms SET host_address = host_id WHERE host_address IS NULL;
 
+-- Make host_id nullable (transitioning away from it)
+ALTER TABLE game_rooms ALTER COLUMN host_id DROP NOT NULL;
+
 -- Create index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_game_rooms_host_address ON game_rooms(host_address);
 
--- Optional: You can drop host_id if you're fully migrating to host_address
--- ALTER TABLE game_rooms DROP COLUMN IF EXISTS host_id;
+-- Force schema cache reload
+NOTIFY pgrst, 'reload schema';
 
--- Note: If you want to keep both columns for backwards compatibility, keep host_id
--- Otherwise, uncomment the DROP COLUMN statement above
+-- Note: We're keeping host_id for backwards compatibility during migration
+-- Both host_id and host_address will be populated with wallet address
+-- In future versions, host_id can be removed entirely
