@@ -58,11 +58,14 @@ export default function GameCanvas() {
     // For single-player, start immediately
     let cleanup: (() => void) | undefined;
     
-    if (gameMode === 'single-player') {
-      cleanup = initializeGame(canvas, ctx);
-    } else if (gameMode === 'multiplayer' && gameInitialized && serverStartTime) {
-      cleanup = initializeGame(canvas, ctx, serverStartTime);
-    }
+    // Use requestAnimationFrame to ensure canvas has proper dimensions before initializing
+    requestAnimationFrame(() => {
+      if (gameMode === 'single-player') {
+        cleanup = initializeGame(canvas, ctx);
+      } else if (gameMode === 'multiplayer' && gameInitialized && serverStartTime) {
+        cleanup = initializeGame(canvas, ctx, serverStartTime);
+      }
+    });
 
     // Cleanup on unmount
     return () => {

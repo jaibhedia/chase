@@ -13,6 +13,10 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: "Chase - Crypto Game",
   description: "A fast-paced multiplayer chase game with crypto wallet integration",
+  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
+  other: {
+    'screen-orientation': 'landscape',
+  }
 };
 
 export default function RootLayout({
@@ -22,6 +26,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <style dangerouslySetInnerHTML={{ __html: `
+          @media screen and (max-width: 768px) {
+            body {
+              overflow: hidden;
+            }
+          }
+        `}} />
+      </head>
       <body className={inter.className}>
         <Web3Provider>
           <AudioInitializer />

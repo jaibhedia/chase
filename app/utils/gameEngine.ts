@@ -89,8 +89,9 @@ export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCo
   if (!gameMode || !selectedCharacter || !selectedMap) return;
 
   // Use canvas dimensions directly - no scaling needed
-  const mapWidth = canvas.width;
-  const mapHeight = canvas.height;
+  // Fallback to reasonable defaults if canvas not sized yet
+  const mapWidth = canvas.width || 1400;
+  const mapHeight = canvas.height || 900;
   const scale = 1; // No scaling - use full canvas
   const offsetX = 0;
   const offsetY = 0;
@@ -319,10 +320,14 @@ function createMapObjects(mapId: string, width: number, height: number): GameObj
 
   // No boundary walls - collision detection handles boundaries directly
   
+  // Ensure valid dimensions (fallback to defaults if needed)
+  const safeWidth = width > 0 ? width : 1400;
+  const safeHeight = height > 0 ? height : 900;
+  
   // Scale furniture size based on canvas dimensions
-  const scale = Math.min(width / 1400, height / 900);
-  const sx = (pos: number) => pos * (width / 1400); // Scale X position
-  const sy = (pos: number) => pos * (height / 900); // Scale Y position
+  const scale = Math.min(safeWidth / 1400, safeHeight / 900);
+  const sx = (pos: number) => pos * (safeWidth / 1400); // Scale X position
+  const sy = (pos: number) => pos * (safeHeight / 900); // Scale Y position
   const sw = (size: number) => size * scale; // Scale width
   const sh = (size: number) => size * scale; // Scale height
 
