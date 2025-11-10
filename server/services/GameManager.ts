@@ -88,6 +88,7 @@ export class GameManager {
       const { error: playerError } = await supabase
         .from('players_in_room')
         .insert({
+          room_id: room.id, // UUID from created room
           room_code: roomCode,
           wallet_address: data.walletAddress,
           player_name: data.playerName,
@@ -151,6 +152,7 @@ export class GameManager {
       const { error: playerError } = await supabase
         .from('players_in_room')
         .insert({
+          room_id: room.id, // UUID from room
           room_code: data.roomCode,
           wallet_address: data.walletAddress,
           player_name: data.playerName,
