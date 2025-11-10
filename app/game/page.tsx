@@ -67,11 +67,10 @@ export default function Game() {
   }
 
   return (
-    <main className="h-screen w-screen bg-black overflow-hidden">
+    <main className="h-screen w-screen bg-black overflow-hidden flex flex-col">
       <LandscapePrompt />
       <GameHUD />
-      {/* Canvas container that fills screen minus HUD height */}
-      <div className="absolute inset-0 top-16 md:top-20">
+      <div className="flex-1 w-full overflow-hidden mt-16 md:mt-32">
         <GameCanvas />
       </div>
       <MobileControls

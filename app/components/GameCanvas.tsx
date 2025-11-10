@@ -45,48 +45,24 @@ export default function GameCanvas() {
     const resizeCanvas = () => {
       const container = canvas.parentElement;
       if (container) {
-        const width = container.clientWidth;
-        const height = container.clientHeight;
-        
-        // Only resize if we have valid dimensions
-        if (width > 0 && height > 0) {
-          canvas.width = width;
-          canvas.height = height;
-          console.log('Canvas resized to:', width, height);
-        }
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
       }
     };
 
-    // Initial resize with a small delay to ensure container has dimensions
-    setTimeout(resizeCanvas, 0);
+    resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    // Initialize the game
+    // Initialize the game after canvas is properly sized
     let cleanup: (() => void) | undefined;
     
-    const initGame = () => {
-      if (canvas.width === 0 || canvas.height === 0) {
-        console.log('Canvas has no dimensions yet, waiting...');
-        return;
-      }
-
-      if (gameMode === 'single-player') {
-        console.log('Initializing single-player game');
-        cleanup = initializeGame(canvas, ctx);
-      } else if (gameMode === 'multiplayer') {
-        if (gameInitialized && serverStartTime) {
-          console.log('Initializing multiplayer game with server time:', serverStartTime);
-          cleanup = initializeGame(canvas, ctx, serverStartTime);
-        } else {
-          console.log('Waiting for game-started event...');
-        }
-      }
-    };
-
-    // Try to initialize after canvas is sized
+    // Use requestAnimationFrame to ensure canvas dimensions are set
     requestAnimationFrame(() => {
-      resizeCanvas();
-      setTimeout(initGame, 50);
+      if (gameMode === 'single-player') {
+        cleanup = initializeGame(canvas, ctx);
+      } else if (gameMode === 'multiplayer' && gameInitialized && serverStartTime) {
+        cleanup = initializeGame(canvas, ctx, serverStartTime);
+      }
     });
 
     // Cleanup on unmount
