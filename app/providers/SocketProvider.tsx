@@ -99,13 +99,16 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      console.log('📤 Emitting create-room:', data);
       socketRef.current.emit('create-room', data);
 
       socketRef.current.once('room-created', (response) => {
+        console.log('📥 Received room-created:', response);
         resolve(response);
       });
 
       socketRef.current.once('error', (error) => {
+        console.error('❌ Room creation error:', error);
         reject(error);
       });
     });
@@ -123,13 +126,16 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      console.log('📤 Emitting join-room:', data);
       socketRef.current.emit('join-room', data);
 
-      socketRef.current.once('player-joined', (response) => {
+      socketRef.current.once('room-joined', (response) => {
+        console.log('📥 Received room-joined:', response);
         resolve(response);
       });
 
       socketRef.current.once('error', (error) => {
+        console.error('❌ Room join error:', error);
         reject(error);
       });
     });

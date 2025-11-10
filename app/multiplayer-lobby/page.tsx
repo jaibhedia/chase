@@ -101,6 +101,13 @@ export default function MultiplayerLobby() {
       setIsInRoom(true);
       setIsHost(true); // Mark as host
       setShowMapSelection(true); // Show map selection to host
+      
+      // Initialize players array with the creator
+      if (response.players) {
+        console.log('🎮 Setting initial players:', response.players);
+        setPlayers(response.players);
+      }
+      
       console.log('Room created:', response.roomCode);
     } catch (err: any) {
       setError(err.message || 'Failed to create room');
@@ -124,7 +131,7 @@ export default function MultiplayerLobby() {
     setError('');
 
     try {
-      await joinRoom({
+      const response: any = await joinRoom({
         roomCode: roomCode.toUpperCase(),
         walletAddress,
         characterId: parseInt(selectedCharacter.id.split('-')[1]),
@@ -132,6 +139,21 @@ export default function MultiplayerLobby() {
       });
 
       setIsInRoom(true);
+      
+      // Initialize players array from join response
+      if (response.players) {
+        console.log('🎮 Setting initial players after join:', response.players);
+        setPlayers(response.players);
+      }
+      
+      // Set the selected map from room data
+      if (response.room?.map_id) {
+        const map = gameMaps.find(m => m.id === response.room.map_id);
+        if (map) {
+          setMap(map);
+        }
+      }
+      
       console.log('Joined room:', roomCode);
     } catch (err: any) {
       setError(err.message || 'Failed to join room');
