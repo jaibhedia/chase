@@ -45,12 +45,19 @@ export default function GameCanvas() {
     const resizeCanvas = () => {
       const container = canvas.parentElement;
       if (container) {
-        canvas.width = container.clientWidth;
-        canvas.height = container.clientHeight;
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        
+        // Only resize if we have valid dimensions
+        if (width > 0 && height > 0) {
+          canvas.width = width;
+          canvas.height = height;
+        }
       }
     };
 
-    resizeCanvas();
+    // Initial resize with a small delay to ensure container has dimensions
+    setTimeout(resizeCanvas, 0);
     window.addEventListener('resize', resizeCanvas);
 
     // Initialize the game
@@ -60,10 +67,25 @@ export default function GameCanvas() {
     
     // Use requestAnimationFrame to ensure canvas has proper dimensions before initializing
     requestAnimationFrame(() => {
-      if (gameMode === 'single-player') {
-        cleanup = initializeGame(canvas, ctx);
-      } else if (gameMode === 'multiplayer' && gameInitialized && serverStartTime) {
-        cleanup = initializeGame(canvas, ctx, serverStartTime);
+      // Double-check dimensions are valid
+      if (canvas.width > 0 && canvas.height > 0) {
+        if (gameMode === 'single-player') {
+          cleanup = initializeGame(canvas, ctx);
+        } else if (gameMode === 'multiplayer' && gameInitialized && serverStartTime) {
+          cleanup = initializeGame(canvas, ctx, serverStartTime);
+        }
+      } else {
+        // If still no dimensions, try one more time after a delay
+        setTimeout(() => {
+          resizeCanvas();
+          if (canvas.width > 0 && canvas.height > 0) {
+            if (gameMode === 'single-player') {
+              cleanup = initializeGame(canvas, ctx);
+            } else if (gameMode === 'multiplayer' && gameInitialized && serverStartTime) {
+              cleanup = initializeGame(canvas, ctx, serverStartTime);
+            }
+          }
+        }, 100);
       }
     });
 

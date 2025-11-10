@@ -67,10 +67,10 @@ export default function Game() {
   }
 
   return (
-    <main className="h-screen w-screen bg-black overflow-hidden flex flex-col">
+    <main className="h-screen w-screen bg-black overflow-hidden flex flex-col relative">
       <LandscapePrompt />
       <GameHUD />
-      <div className="flex-1 w-full overflow-hidden mt-16 md:mt-32">
+      <div className="absolute top-16 md:top-32 left-0 right-0 bottom-0 md:bottom-0">
         <GameCanvas />
       </div>
       <MobileControls
