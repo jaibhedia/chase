@@ -591,6 +591,38 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Get current room state (for sync check)
+  socket.on('get-room-state', async ({ roomCode }) => {
+    try {
+      const { data: room } = await supabase
+        .from('game_rooms')
+        .select('id, room_code, current_players, max_players, status')
+        .eq('room_code', roomCode)
+        .single();
+
+      if (!room) {
+        console.log(`❌ get-room-state: Room ${roomCode} not found`);
+        return;
+      }
+
+      const { data: players } = await supabase
+        .from('players_in_room')
+        .select('wallet_address, is_ready, character, map')
+        .eq('room_id', room.id);
+
+      console.log(`🔍 get-room-state for ${roomCode}: ${players?.length || 0} players in DB`);
+      console.log('   DB Players:', players?.map(p => p.wallet_address.slice(0, 8)));
+
+      // Send current state back to requester
+      socket.emit('room-state-response', {
+        room,
+        players: players || []
+      });
+    } catch (error) {
+      console.error('Error getting room state:', error);
+    }
+  });
+
   // Disconnect
   socket.on('disconnect', async () => {
     console.log('Player disconnected:', socket.id);
@@ -635,6 +667,10 @@ io.on('connection', (socket) => {
                 .from('players_in_room')
                 .select('*')
                 .eq('room_id', room.id);
+
+              console.log(`➖ Player left ${roomCode}: ${walletAddress.slice(0, 8)}`);
+              console.log(`   Remaining players in DB: ${players?.length || 0}`);
+              console.log(`   Broadcasting to room with players:`, players?.map(p => p.wallet_address.slice(0, 8)));
 
               io.to(roomCode).emit('player-left', {
                 walletAddress,
