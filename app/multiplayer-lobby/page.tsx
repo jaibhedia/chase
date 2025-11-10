@@ -21,7 +21,8 @@ export default function MultiplayerLobby() {
   const [isInRoom, setIsInRoom] = useState(false);
   const [error, setError] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
-  const [showMapSelection, setShowMapSelection] = useState(true); // Show map selection first
+  const [isHost, setIsHost] = useState(false);
+  const [showMapSelection, setShowMapSelection] = useState(false); // Only show after room created for host
 
   // Initialize wallet address on client side only
   useEffect(() => {
@@ -76,16 +77,14 @@ export default function MultiplayerLobby() {
       return;
     }
 
-    // Ensure map is selected (should be auto-selected by now)
-    const mapToUse = selectedMap || gameMaps[0];
-
     setIsCreating(true);
     setError('');
 
     try {
+      // Create room without map (map will be selected after)
       const response: any = await createRoom({
         walletAddress,
-        mapId: mapToUse.id,
+        mapId: gameMaps[0].id, // Default map, will be updated when host selects
         gameMode: 'multiplayer',
         characterId: parseInt(selectedCharacter.id.split('-')[1]),
         playerName: selectedCharacter.name
@@ -93,7 +92,8 @@ export default function MultiplayerLobby() {
 
       setRoomCode(response.roomCode);
       setIsInRoom(true);
-      setIsReady(true); // Host is always ready
+      setIsHost(true); // Mark as host
+      setShowMapSelection(true); // Show map selection to host
       console.log('Room created:', response.roomCode);
     } catch (err: any) {
       setError(err.message || 'Failed to create room');
@@ -146,14 +146,17 @@ export default function MultiplayerLobby() {
   const allReady = players.every(p => p.is_ready);
   const canStart = currentPlayers >= minPlayers && allReady;
 
-  // Map Selection View (shows first)
-  if (showMapSelection && !selectedMap) {
+  // Map Selection View (only for host, shows after room created)
+  if (showMapSelection && isHost && !selectedMap) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#0f0c29] via-[#302b63] to-[#24243e] flex items-center justify-center p-4">
         <div className="w-full max-w-6xl">
-          <h1 className="text-4xl font-bold text-white text-center mb-8">
-            Select Map
+          <h1 className="text-4xl font-bold text-white text-center mb-4">
+            Choose Game Map
           </h1>
+          <p className="text-gray-300 text-center mb-8">
+            As the host, select the map for this game
+          </p>
           
           <div className="grid md:grid-cols-3 gap-6 mb-8">
             {gameMaps.map((map, index) => (
@@ -163,6 +166,7 @@ export default function MultiplayerLobby() {
                 onClick={() => {
                   setMap(map);
                   setShowMapSelection(false);
+                  setIsReady(true); // Auto-ready after selecting map
                 }}
               >
                 <h3 className="text-2xl font-bold text-white mb-2">{map.name}</h3>
@@ -171,19 +175,15 @@ export default function MultiplayerLobby() {
                   <p className="text-sm text-gray-400">Dimensions: {map.width} x {map.height}</p>
                 </div>
                 <Button className="w-full bg-gradient-to-r from-purple-600 to-blue-600">
-                  Select Map
+                  Select This Map
                 </Button>
               </Card>
             ))}
           </div>
 
-          <div className="text-center">
-            <Button
-              onClick={() => router.push('/character-selection')}
-              className="bg-gray-700 hover:bg-gray-600 text-white px-8 py-3"
-            >
-              ← Back
-            </Button>
+          <div className="text-center text-gray-400">
+            <p>Room Code: <span className="text-white font-bold text-2xl">{roomCode}</span></p>
+            <p className="mt-2">Share this code with your friends to join!</p>
           </div>
         </div>
       </div>
@@ -197,25 +197,6 @@ export default function MultiplayerLobby() {
           <h1 className="text-4xl font-bold text-white text-center mb-8">
             Multiplayer Lobby
           </h1>
-
-          {/* Selected Map Display */}
-          <Card className="p-4 bg-black/40 border-2 border-green-500/30 mb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Selected Map</p>
-                <p className="text-2xl font-bold text-white">{selectedMap?.name || 'No map selected'}</p>
-              </div>
-              <Button
-                onClick={() => {
-                  setMap(null as any);
-                  setShowMapSelection(true);
-                }}
-                className="bg-purple-600 hover:bg-purple-700"
-              >
-                Change Map
-              </Button>
-            </div>
-          </Card>
 
           <div className="grid md:grid-cols-2 gap-6">
             {/* Create Room */}
@@ -295,6 +276,17 @@ export default function MultiplayerLobby() {
             </p>
           </div>
         </Card>
+
+        {/* Selected Map Display */}
+        {selectedMap && (
+          <Card className="p-4 bg-black/40 border-2 border-green-500/30 mb-6">
+            <div className="text-center">
+              <p className="text-gray-400 text-sm mb-1">Playing On</p>
+              <p className="text-3xl font-bold text-white">{selectedMap.name}</p>
+              <p className="text-gray-300 text-sm mt-1">{selectedMap.description}</p>
+            </div>
+          </Card>
+        )}
 
         {/* Player Count */}
         <Card className="p-4 bg-black/40 border-2 border-blue-500/30 mb-6">
