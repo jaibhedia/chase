@@ -1,12 +1,38 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { initializeGame } from '../utils/gameEngine';
+import { useSocket } from '../hooks/useSocket';
 
 export default function GameCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { selectedMap } = useGameStore();
+  const { selectedMap, gameMode } = useGameStore();
+  const socket = useSocket();
+  const [serverStartTime, setServerStartTime] = useState<number | undefined>();
+  const [gameInitialized, setGameInitialized] = useState(false);
+
+  useEffect(() => {
+    if (!socket || gameMode !== 'multiplayer') return;
+
+    // Listen for server-controlled game start
+    socket.on('game-started', ({ serverTime }: { serverTime: number }) => {
+      console.log('Game started at server time:', serverTime);
+      setServerStartTime(serverTime);
+      setGameInitialized(true);
+    });
+
+    // Listen for server-controlled game end
+    socket.on('game-ended', () => {
+      console.log('Game ended by server');
+      // The game engine will handle the end based on timer
+    });
+
+    return () => {
+      socket.off('game-started');
+      socket.off('game-ended');
+    };
+  }, [socket, gameMode]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -28,14 +54,22 @@ export default function GameCanvas() {
     window.addEventListener('resize', resizeCanvas);
 
     // Initialize the game
-    const cleanup = initializeGame(canvas, ctx);
+    // For multiplayer, wait for server start time
+    // For single-player, start immediately
+    let cleanup: (() => void) | undefined;
+    
+    if (gameMode === 'single-player') {
+      cleanup = initializeGame(canvas, ctx);
+    } else if (gameMode === 'multiplayer' && gameInitialized && serverStartTime) {
+      cleanup = initializeGame(canvas, ctx, serverStartTime);
+    }
 
     // Cleanup on unmount
     return () => {
       if (cleanup) cleanup();
       window.removeEventListener('resize', resizeCanvas);
     };
-  }, [selectedMap]);
+  }, [selectedMap, gameMode, gameInitialized, serverStartTime]);
 
   return (
     <canvas

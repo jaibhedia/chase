@@ -82,19 +82,18 @@ function findSafeSpawnPosition(
   return { x: mapWidth / 2, y: mapHeight / 2 };
 }
 
-export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
+export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, serverStartTime?: number) {
   const store = useGameStore.getState();
   const { gameMode, selectedCharacter, selectedMap, setGamePhase, setPlayers, setGameObjects, setTimeRemaining, setCountdownTimer, setGameResult, updatePlayer } = store;
 
   if (!gameMode || !selectedCharacter || !selectedMap) return;
 
-  // Calculate scale to fit map in canvas edge-to-edge
-  const scaleX = canvas.width / selectedMap.width;
-  const scaleY = canvas.height / selectedMap.height;
-  const scale = Math.min(scaleX, scaleY);
-  
-  const offsetX = (canvas.width - selectedMap.width * scale) / 2;
-  const offsetY = (canvas.height - selectedMap.height * scale) / 2;
+  // Use canvas dimensions directly - no scaling needed
+  const mapWidth = canvas.width;
+  const mapHeight = canvas.height;
+  const scale = 1; // No scaling - use full canvas
+  const offsetX = 0;
+  const offsetY = 0;
 
   const gameState: GameState = {
     players: [],
@@ -103,21 +102,21 @@ export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCo
     playerPosition: { x: 100, y: 100 },
     lastTagTime: 0,
     lastTaggedPlayerId: null,
-    gameStartTime: Date.now(),
+    gameStartTime: serverStartTime || Date.now(), // Use server time for multiplayer
     earthquakeEffects: [],
     portalEffects: [],
     forceFieldEffects: [],
     punchEffects: [],
   };
 
-  const objects: GameObject[] = createMapObjects(selectedMap.id, selectedMap.width, selectedMap.height);
+  const objects: GameObject[] = createMapObjects(selectedMap.id, mapWidth, mapHeight);
   gameState.objects = objects;
   setGameObjects(objects);
 
   const players: Player[] = [];
   
   // Spawn human player in a safe position
-  const humanSpawn = findSafeSpawnPosition(selectedMap.width, selectedMap.height, objects);
+  const humanSpawn = findSafeSpawnPosition(mapWidth, mapHeight, objects);
   const humanPlayer: Player = {
     id: 'player',
     x: humanSpawn.x,
@@ -137,39 +136,43 @@ export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCo
   players.push(humanPlayer);
   gameState.playerPosition = { x: humanPlayer.x, y: humanPlayer.y };
 
-  // Get available characters for bots (excluding the human player's character)
-  const availableCharacters = characters.filter(char => char.id !== selectedCharacter.id);
-  
-  // Add 5 bots to make total 6 players (1 human + 5 bots)
-  const numBots = 5;
-  for (let i = 0; i < numBots; i++) {
-    // Assign unique characters to bots, cycling through available ones
-    const botChar = availableCharacters[i % availableCharacters.length];
+  // Only add bots in single-player mode
+  if (gameMode === 'single-player') {
+    // Get available characters for bots (excluding the human player's character)
+    const availableCharacters = characters.filter(char => char.id !== selectedCharacter.id);
     
-    // Find safe spawn position for each bot, keeping distance from existing players
-    const botSpawn = findSafeSpawnPosition(selectedMap.width, selectedMap.height, objects, players, 120);
-    
-    const botPlayer = {
-      id: `bot-${i}`,
-      x: botSpawn.x,
-      y: botSpawn.y,
-      character: botChar,
-      isBot: true,
-      isChaser: false,
-      tagCount: 0,
-      powerUpReady: false,
-      powerUpActive: false,
-      powerUpCooldown: 0,
-      isInvisible: false,
-      speedBoostActive: false,
-      trail: [],
-    };
-    
-    players.push(botPlayer);
-    
-    // Lock the character so it can't be used again
-    store.lockCharacter(botChar.id);
+    // Add 5 bots to make total 6 players (1 human + 5 bots) for single-player
+    const numBots = 5;
+    for (let i = 0; i < numBots; i++) {
+      // Assign unique characters to bots, cycling through available ones
+      const botChar = availableCharacters[i % availableCharacters.length];
+      
+      // Find safe spawn position for each bot, keeping distance from existing players
+      const botSpawn = findSafeSpawnPosition(mapWidth, mapHeight, objects, players, 120);
+      
+      const botPlayer = {
+        id: `bot-${i}`,
+        x: botSpawn.x,
+        y: botSpawn.y,
+        character: botChar,
+        isBot: true,
+        isChaser: false,
+        tagCount: 0,
+        powerUpReady: false,
+        powerUpActive: false,
+        powerUpCooldown: 0,
+        isInvisible: false,
+        speedBoostActive: false,
+        trail: [],
+      };
+      
+      players.push(botPlayer);
+      
+      // Lock the character so it can't be used again
+      store.lockCharacter(botChar.id);
+    }
   }
+  // In multiplayer mode, bots will be added via Socket.io when other players join
 
   gameState.players = players;
   setPlayers(players);
@@ -194,7 +197,7 @@ export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCo
       e.preventDefault();
       const humanPlayer = gameState.players.find(p => p.id === 'player');
       if (humanPlayer && humanPlayer.powerUpReady && !humanPlayer.powerUpActive && !humanPlayer.powerUpCooldown) {
-        activatePowerUp(humanPlayer, gameState, selectedMap);
+        activatePowerUp(humanPlayer, gameState, selectedMap, mapWidth, mapHeight);
       }
     }
     
@@ -249,28 +252,49 @@ export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCo
       phaseTickAccumulator = 0;
       
       if (currentPhase === 'countdown') {
-        countdownTimer--;
-        setCountdownTimer(countdownTimer);
-        
-        if (countdownTimer <= 0) {
+        // For multiplayer, skip countdown as it's handled by server
+        if (gameMode === 'multiplayer') {
           currentPhase = 'playing';
           setGamePhase('playing');
           audioManager.play('phase');
+        } else {
+          countdownTimer--;
+          setCountdownTimer(countdownTimer);
+          
+          if (countdownTimer <= 0) {
+            currentPhase = 'playing';
+            setGamePhase('playing');
+            audioManager.play('phase');
+          }
         }
       } else if (currentPhase === 'playing') {
-        gameTimer--;
-        setTimeRemaining(gameTimer);
-        
-        if (gameTimer <= 0) {
-          endGame();
-          return;
+        // For multiplayer, calculate time based on server start time
+        if (gameMode === 'multiplayer' && serverStartTime) {
+          const elapsedTime = Math.floor((Date.now() - serverStartTime) / 1000);
+          const timeLeft = Math.max(0, GAME_DURATION - elapsedTime);
+          gameTimer = timeLeft;
+          setTimeRemaining(timeLeft);
+          
+          if (timeLeft <= 0) {
+            endGame();
+            return;
+          }
+        } else {
+          // Single player mode - use local timer
+          gameTimer--;
+          setTimeRemaining(gameTimer);
+          
+          if (gameTimer <= 0) {
+            endGame();
+            return;
+          }
         }
       }
     }
 
     if (currentPhase === 'playing') {
-      updateGame(gameState, deltaTime, selectedMap);
-      updatePowerUps(gameState, deltaTime);
+      updateGame(gameState, deltaTime, selectedMap, mapWidth, mapHeight);
+      updatePowerUps(gameState, deltaTime, mapWidth, mapHeight);
       updateEffects(gameState, deltaTime);
     }
 
@@ -293,59 +317,47 @@ export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCo
 function createMapObjects(mapId: string, width: number, height: number): GameObject[] {
   const objects: GameObject[] = [];
 
-  // Add invisible boundary walls (1px thick for collision only)
-  objects.push(
-    { id: 'wall-top', x: 0, y: 0, width, height: 1, type: 'wall', color: '#1a1a2e' },
-    { id: 'wall-bottom', x: 0, y: height - 1, width, height: 1, type: 'wall', color: '#1a1a2e' },
-    { id: 'wall-left', x: 0, y: 0, width: 1, height, type: 'wall', color: '#1a1a2e' },
-    { id: 'wall-right', x: width - 1, y: 0, width: 1, height, type: 'wall', color: '#1a1a2e' }
-  );
+  // No boundary walls - collision detection handles boundaries directly
+  
+  // Scale furniture size based on canvas dimensions
+  const scale = Math.min(width / 1400, height / 900);
+  const sx = (pos: number) => pos * (width / 1400); // Scale X position
+  const sy = (pos: number) => pos * (height / 900); // Scale Y position
+  const sw = (size: number) => size * scale; // Scale width
+  const sh = (size: number) => size * scale; // Scale height
 
   if (mapId === 'map-1') {
-    // Cozy House - Living room, kitchen, bedroom areas with lots of furniture
+    // Cozy House - Fewer, better-placed furniture items
     objects.push(
-      // Living room area
-      { id: 'sofa-1', x: 150, y: 200, width: 180, height: 80, type: 'furniture', color: '#8B4513' },
-      { id: 'sofa-2', x: 150, y: 300, width: 80, height: 120, type: 'furniture', color: '#8B4513' },
-      { id: 'coffee-table', x: 250, y: 250, width: 100, height: 60, type: 'furniture', color: '#654321' },
-      { id: 'tv-stand', x: 50, y: 150, width: 60, height: 100, type: 'furniture', color: '#4A4A4A' },
-      { id: 'armchair', x: 400, y: 180, width: 70, height: 70, type: 'furniture', color: '#A0522D' },
+      // Living room area (left side)
+      { id: 'sofa-1', x: sx(150), y: sy(200), width: sw(180), height: sh(80), type: 'furniture', color: '#8B4513' },
+      { id: 'coffee-table', x: sx(250), y: sy(250), width: sw(100), height: sh(60), type: 'furniture', color: '#654321' },
+      { id: 'tv-stand', x: sx(50), y: sy(150), width: sw(60), height: sh(100), type: 'furniture', color: '#4A4A4A' },
       
-      // Kitchen area
-      { id: 'counter-1', x: 200, y: height - 180, width: 250, height: 60, type: 'furniture', color: '#696969' },
-      { id: 'counter-2', x: 200, y: height - 240, width: 60, height: 150, type: 'furniture', color: '#696969' },
-      { id: 'island', x: 350, y: height - 350, width: 150, height: 100, type: 'furniture', color: '#8B8B8B' },
-      { id: 'fridge', x: 50, y: height - 230, width: 80, height: 100, type: 'furniture', color: '#D3D3D3' },
-      { id: 'dining-table', x: 550, y: height - 300, width: 140, height: 100, type: 'furniture', color: '#654321' },
+      // Kitchen area (bottom)
+      { id: 'counter-1', x: sx(200), y: sy(720), width: sw(250), height: sh(60), type: 'furniture', color: '#696969' },
+      { id: 'island', x: sx(350), y: sy(550), width: sw(150), height: sh(100), type: 'furniture', color: '#8B8B8B' },
+      { id: 'fridge', x: sx(50), y: sy(670), width: sw(80), height: sh(100), type: 'furniture', color: '#D3D3D3' },
       
-      // Bedroom area
-      { id: 'bed', x: width - 280, y: 120, width: 180, height: 140, type: 'furniture', color: '#A0522D' },
-      { id: 'nightstand-1', x: width - 320, y: 120, width: 50, height: 50, type: 'furniture', color: '#654321' },
-      { id: 'nightstand-2', x: width - 100, y: 120, width: 50, height: 50, type: 'furniture', color: '#654321' },
-      { id: 'wardrobe', x: width - 280, y: 300, width: 100, height: 180, type: 'furniture', color: '#5C4033' },
-      { id: 'dresser', x: width - 160, y: 300, width: 120, height: 60, type: 'furniture', color: '#8B4513' },
+      // Bedroom area (right side)
+      { id: 'bed', x: sx(1120), y: sy(120), width: sw(180), height: sh(140), type: 'furniture', color: '#A0522D' },
+      { id: 'wardrobe', x: sx(1120), y: sy(300), width: sw(100), height: sh(180), type: 'furniture', color: '#5C4033' },
       
-      // Hallway and additional items
-      { id: 'bookshelf-1', x: 50, y: 450, width: 80, height: 150, type: 'furniture', color: '#8B4513' },
-      { id: 'bookshelf-2', x: width - 130, y: 520, width: 80, height: 150, type: 'furniture', color: '#8B4513' },
-      { id: 'plant-1', x: 500, y: 150, width: 40, height: 40, type: 'furniture', color: '#228B22' },
-      { id: 'plant-2', x: width - 380, y: 500, width: 40, height: 40, type: 'furniture', color: '#228B22' },
-      { id: 'rug-center', x: 600, y: 350, width: 120, height: 80, type: 'furniture', color: '#8B0000' },
-      { id: 'sideboard', x: 700, y: 150, width: 150, height: 60, type: 'furniture', color: '#654321' },
-      { id: 'desk', x: 900, y: height - 450, width: 120, height: 70, type: 'furniture', color: '#654321' },
-      { id: 'chair-1', x: 920, y: height - 380, width: 50, height: 50, type: 'furniture', color: '#4A4A4A' }
+      // Central obstacles
+      { id: 'bookshelf-1', x: sx(50), y: sy(450), width: sw(80), height: sh(150), type: 'furniture', color: '#8B4513' },
+      { id: 'desk', x: sx(900), y: sy(450), width: sw(120), height: sh(70), type: 'furniture', color: '#654321' }
     );
   } else if (mapId === 'map-2') {
-    // Office Space - Multiple cubicle rows, meeting rooms, desks
-    // Cubicle grid
-    for (let row = 0; row < 4; row++) {
-      for (let col = 0; col < 5; col++) {
+    // Office Space - Simplified, scaled layout
+    // Cubicle rows (fewer, more spaced out)
+    for (let row = 0; row < 2; row++) {
+      for (let col = 0; col < 3; col++) {
         objects.push({
           id: `cubicle-${row}-${col}`,
-          x: 100 + col * 220,
-          y: 100 + row * 180,
-          width: 140,
-          height: 100,
+          x: sx(150 + col * 300),
+          y: sy(150 + row * 250),
+          width: sw(180),
+          height: sh(120),
           type: 'furniture',
           color: '#4A4A4A'
         });
@@ -355,81 +367,55 @@ function createMapObjects(mapId: string, width: number, height: number): GameObj
     // Meeting rooms and additional furniture
     objects.push(
       // Conference room
-      { id: 'conf-table', x: width - 350, y: 150, width: 250, height: 120, type: 'furniture', color: '#654321' },
-      { id: 'chair-conf-1', x: width - 370, y: 140, width: 45, height: 45, type: 'furniture', color: '#555555' },
-      { id: 'chair-conf-2', x: width - 370, y: 240, width: 45, height: 45, type: 'furniture', color: '#555555' },
-      { id: 'chair-conf-3', x: width - 80, y: 140, width: 45, height: 45, type: 'furniture', color: '#555555' },
-      { id: 'chair-conf-4', x: width - 80, y: 240, width: 45, height: 45, type: 'furniture', color: '#555555' },
+      { id: 'conf-table', x: sx(1050), y: sy(150), width: sw(250), height: sh(120), type: 'furniture', color: '#654321' },
       
       // Break room area
-      { id: 'break-counter', x: 150, y: height - 180, width: 200, height: 60, type: 'furniture', color: '#696969' },
-      { id: 'vending', x: 50, y: height - 200, width: 70, height: 120, type: 'furniture', color: '#D32F2F' },
-      { id: 'break-table-1', x: 400, y: height - 250, width: 100, height: 80, type: 'furniture', color: '#654321' },
-      { id: 'break-table-2', x: 550, y: height - 250, width: 100, height: 80, type: 'furniture', color: '#654321' },
+      { id: 'break-counter', x: sx(150), y: sy(720), width: sw(200), height: sh(60), type: 'furniture', color: '#696969' },
+      { id: 'vending', x: sx(50), y: sy(700), width: sw(70), height: sh(120), type: 'furniture', color: '#D32F2F' },
+      { id: 'break-table', x: sx(400), y: sy(650), width: sw(100), height: sh(80), type: 'furniture', color: '#654321' },
       
       // Executive desks
-      { id: 'exec-desk-1', x: width - 400, y: height - 200, width: 180, height: 90, type: 'furniture', color: '#5C4033' },
-      { id: 'exec-desk-2', x: width - 180, y: height - 200, width: 180, height: 90, type: 'furniture', color: '#5C4033' },
+      { id: 'exec-desk-1', x: sx(1000), y: sy(700), width: sw(180), height: sh(90), type: 'furniture', color: '#5C4033' },
       
-      // File cabinets and storage
-      { id: 'file-cab-1', x: 60, y: 60, width: 60, height: 80, type: 'furniture', color: '#808080' },
-      { id: 'file-cab-2', x: width - 120, y: 60, width: 60, height: 80, type: 'furniture', color: '#808080' },
-      { id: 'storage-1', x: 700, y: height - 450, width: 100, height: 120, type: 'furniture', color: '#696969' },
-      
-      // Office plants
-      { id: 'plant-off-1', x: 300, y: 60, width: 40, height: 40, type: 'furniture', color: '#228B22' },
-      { id: 'plant-off-2', x: width - 200, y: 400, width: 40, height: 40, type: 'furniture', color: '#228B22' },
-      { id: 'plant-off-3', x: 120, y: height - 350, width: 40, height: 40, type: 'furniture', color: '#228B22' }
+      // File cabinets
+      { id: 'file-cab-1', x: sx(60), y: sy(60), width: sw(60), height: sh(80), type: 'furniture', color: '#808080' },
+      { id: 'storage-1', x: sx(700), y: sy(450), width: sw(100), height: sh(120), type: 'furniture', color: '#696969' }
     );
   } else {
-    // Laboratory - Multiple lab benches, equipment, and research stations
+    // Laboratory - Simplified, scaled layout
     objects.push(
-      // Main lab benches in rows
-      { id: 'lab-table-1', x: 150, y: 150, width: 200, height: 90, type: 'furniture', color: '#2F4F4F' },
-      { id: 'lab-table-2', x: 150, y: 280, width: 200, height: 90, type: 'furniture', color: '#2F4F4F' },
-      { id: 'lab-table-3', x: 150, y: 410, width: 200, height: 90, type: 'furniture', color: '#2F4F4F' },
-      { id: 'lab-table-4', x: 400, y: 150, width: 200, height: 90, type: 'furniture', color: '#2F4F4F' },
-      { id: 'lab-table-5', x: 400, y: 280, width: 200, height: 90, type: 'furniture', color: '#2F4F4F' },
-      { id: 'lab-table-6', x: 400, y: 410, width: 200, height: 90, type: 'furniture', color: '#2F4F4F' },
-      { id: 'lab-table-7', x: 650, y: 150, width: 200, height: 90, type: 'furniture', color: '#2F4F4F' },
-      { id: 'lab-table-8', x: 650, y: 280, width: 200, height: 90, type: 'furniture', color: '#2F4F4F' },
+      // Main lab benches
+      { id: 'lab-table-1', x: sx(150), y: sy(150), width: sw(200), height: sh(90), type: 'furniture', color: '#2F4F4F' },
+      { id: 'lab-table-2', x: sx(150), y: sy(280), width: sw(200), height: sh(90), type: 'furniture', color: '#2F4F4F' },
+      { id: 'lab-table-3', x: sx(400), y: sy(150), width: sw(200), height: sh(90), type: 'furniture', color: '#2F4F4F' },
+      { id: 'lab-table-4', x: sx(400), y: sy(280), width: sw(200), height: sh(90), type: 'furniture', color: '#2F4F4F' },
+      { id: 'lab-table-5', x: sx(650), y: sy(150), width: sw(200), height: sh(90), type: 'furniture', color: '#2F4F4F' },
+      { id: 'lab-table-6', x: sx(650), y: sy(280), width: sw(200), height: sh(90), type: 'furniture', color: '#2F4F4F' },
       
       // Large equipment
-      { id: 'equipment-1', x: 100, y: height - 250, width: 120, height: 130, type: 'furniture', color: '#778899' },
-      { id: 'equipment-2', x: 280, y: height - 250, width: 100, height: 110, type: 'furniture', color: '#778899' },
-      { id: 'equipment-3', x: width - 280, y: 200, width: 150, height: 150, type: 'furniture', color: '#778899' },
-      { id: 'equipment-4', x: width - 280, y: 400, width: 140, height: 120, type: 'furniture', color: '#778899' },
-      { id: 'centrifuge', x: 900, y: 150, width: 80, height: 80, type: 'furniture', color: '#A9A9A9' },
-      { id: 'microscope-station', x: 1000, y: 280, width: 100, height: 70, type: 'furniture', color: '#696969' },
+      { id: 'equipment-1', x: sx(100), y: sy(650), width: sw(120), height: sh(130), type: 'furniture', color: '#778899' },
+      { id: 'equipment-2', x: sx(1120), y: sy(200), width: sw(150), height: sh(150), type: 'furniture', color: '#778899' },
+      { id: 'equipment-3', x: sx(1120), y: sy(400), width: sw(140), height: sh(120), type: 'furniture', color: '#778899' },
       
       // Storage cabinets
-      { id: 'cabinet-1', x: 50, y: 100, width: 80, height: 120, type: 'furniture', color: '#4A4A4A' },
-      { id: 'cabinet-2', x: 50, y: 250, width: 80, height: 120, type: 'furniture', color: '#4A4A4A' },
-      { id: 'cabinet-3', x: width - 130, y: height - 300, width: 80, height: 150, type: 'furniture', color: '#4A4A4A' },
-      { id: 'chemical-storage', x: width - 230, y: height - 200, width: 180, height: 100, type: 'furniture', color: '#8B0000' },
+      { id: 'cabinet-1', x: sx(50), y: sy(100), width: sw(80), height: sh(120), type: 'furniture', color: '#4A4A4A' },
+      { id: 'cabinet-2', x: sx(50), y: sy(250), width: sw(80), height: sh(120), type: 'furniture', color: '#4A4A4A' },
+      { id: 'chemical-storage', x: sx(1170), y: sy(700), width: sw(180), height: sh(100), type: 'furniture', color: '#8B0000' },
       
       // Research stations
-      { id: 'computer-desk-1', x: 1100, y: 150, width: 150, height: 80, type: 'furniture', color: '#5C4033' },
-      { id: 'computer-desk-2', x: 1100, y: 280, width: 150, height: 80, type: 'furniture', color: '#5C4033' },
-      { id: 'computer-desk-3', x: 1100, y: 410, width: 150, height: 80, type: 'furniture', color: '#5C4033' },
+      { id: 'computer-desk-1', x: sx(900), y: sy(150), width: sw(150), height: sh(80), type: 'furniture', color: '#5C4033' },
+      { id: 'computer-desk-2', x: sx(900), y: sy(280), width: sw(150), height: sh(80), type: 'furniture', color: '#5C4033' },
       
       // Additional lab furniture
-      { id: 'sink-station', x: 450, y: height - 180, width: 180, height: 70, type: 'furniture', color: '#B0C4DE' },
-      { id: 'fume-hood', x: 700, y: height - 220, width: 200, height: 140, type: 'furniture', color: '#D3D3D3' },
-      { id: 'supply-cart-1', x: 950, y: height - 350, width: 70, height: 100, type: 'furniture', color: '#808080' },
-      { id: 'supply-cart-2', x: 1100, y: height - 450, width: 70, height: 100, type: 'furniture', color: '#808080' },
-      { id: 'specimen-fridge', x: width - 350, y: height - 150, width: 100, height: 120, type: 'furniture', color: '#E0E0E0' },
-      
-      // Safety equipment
-      { id: 'safety-shower', x: 50, y: height - 150, width: 60, height: 80, type: 'furniture', color: '#FFD700' },
-      { id: 'first-aid', x: width - 100, y: 50, width: 50, height: 60, type: 'furniture', color: '#FF0000' }
+      { id: 'sink-station', x: sx(450), y: sy(720), width: sw(180), height: sh(70), type: 'furniture', color: '#B0C4DE' },
+      { id: 'fume-hood', x: sx(700), y: sy(680), width: sw(200), height: sh(140), type: 'furniture', color: '#D3D3D3' }
     );
   }
 
   return objects;
 }
 
-function updateGame(gameState: GameState, deltaTime: number, selectedMap: any) {
+function updateGame(gameState: GameState, deltaTime: number, selectedMap: any, mapWidth: number, mapHeight: number) {
   const store = useGameStore.getState();
   const humanPlayer = gameState.players.find(p => p.id === 'player');
   if (!humanPlayer) return;
@@ -445,7 +431,7 @@ function updateGame(gameState: GameState, deltaTime: number, selectedMap: any) {
   if (gameState.keys['a'] || gameState.keys['arrowleft']) newX -= speed;
   if (gameState.keys['d'] || gameState.keys['arrowright']) newX += speed;
 
-  if (!checkCollision(newX, newY, PLAYER_SIZE, gameState.objects, selectedMap.width, selectedMap.height)) {
+  if (!checkCollision(newX, newY, PLAYER_SIZE, gameState.objects, mapWidth, mapHeight)) {
     humanPlayer.x = newX;
     humanPlayer.y = newY;
     gameState.playerPosition = { x: newX, y: newY };
@@ -454,7 +440,7 @@ function updateGame(gameState: GameState, deltaTime: number, selectedMap: any) {
 
   gameState.players.forEach(player => {
     if (player.isBot) {
-      updateBotPlayer(player, gameState, deltaTime, selectedMap);
+      updateBotPlayer(player, gameState, deltaTime, selectedMap, mapWidth, mapHeight);
     }
   });
 
@@ -479,14 +465,14 @@ function updateGame(gameState: GameState, deltaTime: number, selectedMap: any) {
           let newPlayerY = player.y + Math.sin(angle) * pushDistance;
           
           // Try push, if collision, try smaller push
-          if (checkCollision(newPlayerX, newPlayerY, PLAYER_SIZE, gameState.objects, selectedMap.width, selectedMap.height)) {
+          if (checkCollision(newPlayerX, newPlayerY, PLAYER_SIZE, gameState.objects, mapWidth, mapHeight)) {
             const smallerPush = 80;
             newPlayerX = player.x + Math.cos(angle) * smallerPush;
             newPlayerY = player.y + Math.sin(angle) * smallerPush;
           }
           
           // Apply push if valid
-          if (!checkCollision(newPlayerX, newPlayerY, PLAYER_SIZE, gameState.objects, selectedMap.width, selectedMap.height)) {
+          if (!checkCollision(newPlayerX, newPlayerY, PLAYER_SIZE, gameState.objects, mapWidth, mapHeight)) {
             player.x = newPlayerX;
             player.y = newPlayerY;
           }
@@ -521,10 +507,37 @@ function updateGame(gameState: GameState, deltaTime: number, selectedMap: any) {
   }
 }
 
-function updateBotPlayer(bot: Player, gameState: GameState, deltaTime: number, selectedMap: any) {
+function updateBotPlayer(bot: Player, gameState: GameState, deltaTime: number, selectedMap: any, mapWidth: number, mapHeight: number) {
   // Apply speed boost if active
   const speedMultiplier = bot.speedBoostActive ? 2.5 : 1.0;
   const speed = bot.character.speed * 60 * deltaTime * speedMultiplier;
+  
+  // Track bot position to detect if stuck (not defined in Player interface, but we can use it)
+  if (!(bot as any).lastPositionCheck) {
+    (bot as any).lastPositionCheck = { x: bot.x, y: bot.y, time: Date.now() };
+  }
+  
+  // Check if bot hasn't moved in 2 seconds - they're stuck
+  const timeSinceLastCheck = Date.now() - (bot as any).lastPositionCheck.time;
+  if (timeSinceLastCheck > 2000) {
+    const distanceMoved = Math.hypot(bot.x - (bot as any).lastPositionCheck.x, bot.y - (bot as any).lastPositionCheck.y);
+    if (distanceMoved < 20) {
+      // Bot is stuck! Teleport to random safe position
+      for (let i = 0; i < 30; i++) {
+        const randomX = Math.random() * (mapWidth - 200) + 100;
+        const randomY = Math.random() * (mapHeight - 200) + 100;
+        if (!checkCollision(randomX, randomY, PLAYER_SIZE, gameState.objects, mapWidth, mapHeight)) {
+          bot.x = randomX;
+          bot.y = randomY;
+          useGameStore.getState().updatePlayer(bot.id, { x: randomX, y: randomY });
+          bot.targetX = undefined;
+          bot.targetY = undefined;
+          break;
+        }
+      }
+    }
+    (bot as any).lastPositionCheck = { x: bot.x, y: bot.y, time: Date.now() };
+  }
 
   if (bot.isChaser) {
     // Get all non-chaser players (including invisible ones as fallback)
@@ -551,14 +564,14 @@ function updateBotPlayer(bot: Player, gameState: GameState, deltaTime: number, s
       bot.targetX = undefined;
       bot.targetY = undefined;
       
-      moveTowards(bot, nearestPlayer.x, nearestPlayer.y, speed, gameState, selectedMap);
+      moveTowards(bot, nearestPlayer.x, nearestPlayer.y, speed, gameState, selectedMap, mapWidth, mapHeight);
     } else {
       // No other players - wander around
       if (!bot.targetX || !bot.targetY || Math.hypot(bot.x - bot.targetX, bot.y - bot.targetY) < 30) {
-        bot.targetX = Math.random() * (selectedMap.width - 100) + 50;
-        bot.targetY = Math.random() * (selectedMap.height - 100) + 50;
+        bot.targetX = Math.random() * (mapWidth - 100) + 50;
+        bot.targetY = Math.random() * (mapHeight - 100) + 50;
       }
-      moveTowards(bot, bot.targetX, bot.targetY, speed, gameState, selectedMap);
+      moveTowards(bot, bot.targetX, bot.targetY, speed, gameState, selectedMap, mapWidth, mapHeight);
     }
   } else {
     // Bot is not the chaser
@@ -577,27 +590,27 @@ function updateBotPlayer(bot: Player, gameState: GameState, deltaTime: number, s
         bot.targetX = undefined;
         bot.targetY = undefined;
         
-        moveTowards(bot, awayX, awayY, speed, gameState, selectedMap);
+        moveTowards(bot, awayX, awayY, speed, gameState, selectedMap, mapWidth, mapHeight);
       } else {
         // Wander around when safe
         if (!bot.targetX || !bot.targetY || Math.hypot(bot.x - bot.targetX, bot.y - bot.targetY) < 30) {
-          bot.targetX = Math.random() * (selectedMap.width - 100) + 50;
-          bot.targetY = Math.random() * (selectedMap.height - 100) + 50;
+          bot.targetX = Math.random() * (mapWidth - 100) + 50;
+          bot.targetY = Math.random() * (mapHeight - 100) + 50;
         }
-        moveTowards(bot, bot.targetX, bot.targetY, speed, gameState, selectedMap);
+        moveTowards(bot, bot.targetX, bot.targetY, speed, gameState, selectedMap, mapWidth, mapHeight);
       }
     } else {
       // No chaser found - just wander
       if (!bot.targetX || !bot.targetY || Math.hypot(bot.x - bot.targetX, bot.y - bot.targetY) < 30) {
-        bot.targetX = Math.random() * (selectedMap.width - 100) + 50;
-        bot.targetY = Math.random() * (selectedMap.height - 100) + 50;
+        bot.targetX = Math.random() * (mapWidth - 100) + 50;
+        bot.targetY = Math.random() * (mapHeight - 100) + 50;
       }
-      moveTowards(bot, bot.targetX, bot.targetY, speed, gameState, selectedMap);
+      moveTowards(bot, bot.targetX, bot.targetY, speed, gameState, selectedMap, mapWidth, mapHeight);
     }
   }
 }
 
-function moveTowards(player: Player, targetX: number, targetY: number, speed: number, gameState: GameState, selectedMap: any) {
+function moveTowards(player: Player, targetX: number, targetY: number, speed: number, gameState: GameState, selectedMap: any, mapWidth: number, mapHeight: number) {
   // Validate inputs
   if (!player || isNaN(targetX) || isNaN(targetY) || isNaN(speed)) return;
   
@@ -607,7 +620,7 @@ function moveTowards(player: Player, targetX: number, targetY: number, speed: nu
 
   if (distance > 5 && !isNaN(distance) && distance > 0) {
     // Ensure minimum speed for bots so they never get stuck
-    const minSpeed = player.isBot ? 2 : 0;
+    const minSpeed = player.isBot ? 3 : 0;
     const actualSpeed = Math.max(speed, minSpeed);
     
     const newX = player.x + (dx / distance) * actualSpeed;
@@ -615,22 +628,57 @@ function moveTowards(player: Player, targetX: number, targetY: number, speed: nu
 
     // Validate new position
     if (!isNaN(newX) && !isNaN(newY) && isFinite(newX) && isFinite(newY)) {
-      if (!checkCollision(newX, newY, PLAYER_SIZE, gameState.objects, selectedMap.width, selectedMap.height)) {
+      if (!checkCollision(newX, newY, PLAYER_SIZE, gameState.objects, mapWidth, mapHeight)) {
         player.x = newX;
         player.y = newY;
         useGameStore.getState().updatePlayer(player.id, { x: newX, y: newY });
       } else {
         // If collision, try moving in just one direction
-        if (!checkCollision(newX, player.y, PLAYER_SIZE, gameState.objects, selectedMap.width, selectedMap.height)) {
+        if (!checkCollision(newX, player.y, PLAYER_SIZE, gameState.objects, mapWidth, mapHeight)) {
           player.x = newX;
           useGameStore.getState().updatePlayer(player.id, { x: newX, y: player.y });
-        } else if (!checkCollision(player.x, newY, PLAYER_SIZE, gameState.objects, selectedMap.width, selectedMap.height)) {
+        } else if (!checkCollision(player.x, newY, PLAYER_SIZE, gameState.objects, mapWidth, mapHeight)) {
           player.y = newY;
           useGameStore.getState().updatePlayer(player.id, { x: player.x, y: newY });
         } else if (player.isBot) {
-          // Bot is stuck, generate new random target
-          player.targetX = Math.random() * (selectedMap.width - 100) + 50;
-          player.targetY = Math.random() * (selectedMap.height - 100) + 50;
+          // Bot is stuck, try random directions to escape
+          const escapeAttempts = [
+            { x: player.x + actualSpeed, y: player.y },
+            { x: player.x - actualSpeed, y: player.y },
+            { x: player.x, y: player.y + actualSpeed },
+            { x: player.x, y: player.y - actualSpeed },
+            { x: player.x + actualSpeed, y: player.y + actualSpeed },
+            { x: player.x - actualSpeed, y: player.y - actualSpeed },
+            { x: player.x + actualSpeed, y: player.y - actualSpeed },
+            { x: player.x - actualSpeed, y: player.y + actualSpeed },
+          ];
+          
+          // Try each direction
+          for (const attempt of escapeAttempts) {
+            if (!checkCollision(attempt.x, attempt.y, PLAYER_SIZE, gameState.objects, mapWidth, mapHeight)) {
+              player.x = attempt.x;
+              player.y = attempt.y;
+              useGameStore.getState().updatePlayer(player.id, { x: attempt.x, y: attempt.y });
+              // Generate new random target away from current position
+              player.targetX = Math.random() * (mapWidth - 200) + 100;
+              player.targetY = Math.random() * (mapHeight - 200) + 100;
+              return;
+            }
+          }
+          
+          // If all escape attempts fail, teleport to a random safe location
+          for (let i = 0; i < 20; i++) {
+            const randomX = Math.random() * (mapWidth - 200) + 100;
+            const randomY = Math.random() * (mapHeight - 200) + 100;
+            if (!checkCollision(randomX, randomY, PLAYER_SIZE, gameState.objects, mapWidth, mapHeight)) {
+              player.x = randomX;
+              player.y = randomY;
+              useGameStore.getState().updatePlayer(player.id, { x: randomX, y: randomY });
+              player.targetX = Math.random() * (mapWidth - 200) + 100;
+              player.targetY = Math.random() * (mapHeight - 200) + 100;
+              return;
+            }
+          }
         }
       }
     }
@@ -638,8 +686,12 @@ function moveTowards(player: Player, targetX: number, targetY: number, speed: nu
 }
 
 function checkCollision(x: number, y: number, size: number, objects: GameObject[], mapWidth: number, mapHeight: number): boolean {
-  // Check boundary collision (keep players within the map)
-  if (x - size / 2 < 0 || x + size / 2 > mapWidth || y - size / 2 < 0 || y + size / 2 > mapHeight) {
+  // Check boundary collision with a tiny margin to prevent getting stuck at exact edges
+  const margin = 1; // Minimal margin to prevent edge-sticking while allowing full area access
+  if (x - size / 2 < margin || 
+      x + size / 2 > mapWidth - margin || 
+      y - size / 2 < margin || 
+      y + size / 2 > mapHeight - margin) {
     return true;
   }
 
@@ -661,7 +713,7 @@ function checkCollision(x: number, y: number, size: number, objects: GameObject[
 }
 
 // Power-up system functions
-function updatePowerUps(gameState: GameState, deltaTime: number) {
+function updatePowerUps(gameState: GameState, deltaTime: number, mapWidth: number, mapHeight: number) {
   const currentTime = Date.now();
   const elapsedTime = currentTime - gameState.gameStartTime;
   
@@ -689,7 +741,7 @@ function updatePowerUps(gameState: GameState, deltaTime: number) {
     if (player.isBot && player.powerUpReady && !player.powerUpActive && !player.powerUpCooldown && Math.random() < 0.005) {
       const selectedMap = useGameStore.getState().selectedMap;
       if (selectedMap) {
-        activatePowerUp(player, gameState, selectedMap);
+        activatePowerUp(player, gameState, selectedMap, mapWidth, mapHeight);
       }
     }
   });
@@ -722,7 +774,7 @@ function updateEffects(gameState: GameState, deltaTime: number) {
   });
 }
 
-function activatePowerUp(player: Player, gameState: GameState, selectedMap: any) {
+function activatePowerUp(player: Player, gameState: GameState, selectedMap: any, mapWidth: number, mapHeight: number) {
   // Prevent activation if already used or active
   if (!player.powerUpReady || player.powerUpActive || player.powerUpCooldown) return;
   
@@ -775,7 +827,7 @@ function activatePowerUp(player: Player, gameState: GameState, selectedMap: any)
             const newX = other.x + Math.cos(angle) * pushDist;
             const newY = other.y + Math.sin(angle) * pushDist;
             
-            if (!checkCollision(newX, newY, PLAYER_SIZE, gameState.objects, selectedMap.width, selectedMap.height)) {
+            if (!checkCollision(newX, newY, PLAYER_SIZE, gameState.objects, mapWidth, mapHeight)) {
               other.x = newX;
               other.y = newY;
               store.updatePlayer(other.id, { x: newX, y: newY });
@@ -811,7 +863,7 @@ function activatePowerUp(player: Player, gameState: GameState, selectedMap: any)
           const newX = chaser.x + Math.cos(angle) * throwDist;
           const newY = chaser.y + Math.sin(angle) * throwDist;
           
-          if (!checkCollision(newX, newY, PLAYER_SIZE, gameState.objects, selectedMap.width, selectedMap.height)) {
+          if (!checkCollision(newX, newY, PLAYER_SIZE, gameState.objects, mapWidth, mapHeight)) {
             chaser.x = newX;
             chaser.y = newY;
             store.updatePlayer(chaser.id, { x: newX, y: newY });
@@ -830,11 +882,11 @@ function activatePowerUp(player: Player, gameState: GameState, selectedMap: any)
       // Alien - Portal Teleport
       gameState.portalEffects.push({ x: player.x, y: player.y, alpha: 1.0, isEntry: true });
       
-      const newX = Math.random() * (selectedMap.width - 200) + 100;
-      const newY = Math.random() * (selectedMap.height - 200) + 100;
+      const newX = Math.random() * (mapWidth - 200) + 100;
+      const newY = Math.random() * (mapHeight - 200) + 100;
       
       setTimeout(() => {
-        if (!checkCollision(newX, newY, PLAYER_SIZE, gameState.objects, selectedMap.width, selectedMap.height)) {
+        if (!checkCollision(newX, newY, PLAYER_SIZE, gameState.objects, mapWidth, mapHeight)) {
           player.x = newX;
           player.y = newY;
           store.updatePlayer(player.id, { x: newX, y: newY });
@@ -878,7 +930,7 @@ function activatePowerUp(player: Player, gameState: GameState, selectedMap: any)
             const newX = other.x + Math.cos(angle) * pushDist;
             const newY = other.y + Math.sin(angle) * pushDist;
             
-            if (!checkCollision(newX, newY, PLAYER_SIZE, gameState.objects, selectedMap.width, selectedMap.height)) {
+            if (!checkCollision(newX, newY, PLAYER_SIZE, gameState.objects, mapWidth, mapHeight)) {
               other.x = newX;
               other.y = newY;
               store.updatePlayer(other.id, { x: newX, y: newY });

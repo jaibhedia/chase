@@ -235,16 +235,50 @@ io.on('connection', (socket) => {
 
       if (allReady && enoughPlayers) {
         // Start countdown
-        io.to(roomCode).emit('game-starting', { countdown: 5 });
+        const countdownSeconds = 5;
+        io.to(roomCode).emit('game-starting', { countdown: countdownSeconds });
         
+        // Send countdown updates
+        for (let i = countdownSeconds; i > 0; i--) {
+          setTimeout(() => {
+            io.to(roomCode).emit('countdown-tick', { secondsLeft: i });
+          }, (countdownSeconds - i) * 1000);
+        }
+        
+        // Start game after countdown
         setTimeout(async () => {
+          const gameStartTime = Date.now();
+          
           await supabase
             .from('game_rooms')
-            .update({ status: 'in-progress', started_at: new Date().toISOString() })
+            .update({ 
+              status: 'in-progress', 
+              started_at: new Date().toISOString() 
+            })
             .eq('id', room.id);
 
-          io.to(roomCode).emit('game-started');
-        }, 5000);
+          // Send synchronized game start with server timestamp
+          io.to(roomCode).emit('game-started', { 
+            serverTime: gameStartTime,
+            gameDuration: 30 // 30 seconds game duration
+          });
+          
+          // Set up game end timer (30 seconds)
+          setTimeout(() => {
+            io.to(roomCode).emit('game-ended', {
+              serverTime: Date.now()
+            });
+            
+            // Update room status
+            supabase
+              .from('game_rooms')
+              .update({ 
+                status: 'finished',
+                finished_at: new Date().toISOString()
+              })
+              .eq('id', room.id);
+          }, 30000); // 30 seconds
+        }, countdownSeconds * 1000);
       }
     } catch (error) {
       console.error('Error player ready:', error);

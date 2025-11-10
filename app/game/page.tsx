@@ -30,7 +30,7 @@ export default function Game() {
   return (
     <main className="h-screen w-screen bg-black overflow-hidden flex flex-col">
       <GameHUD />
-      <div className="flex-1 w-full overflow-hidden">
+      <div className="flex-1 w-full overflow-hidden mt-32">
         <GameCanvas />
       </div>
     </main>
