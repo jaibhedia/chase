@@ -1,10 +1,9 @@
-import { supabase } from '../supabase';
 import { GAME_CONFIG } from '../config/constants';
 import { generateRoomCode } from '../utils/helpers';
 
 /**
  * GameManager - Pure in-memory multiplayer game state management
- * Database is only used for persistence, NOT for game logic
+ * No database dependencies - everything in memory for real-time sync
  */
 
 interface Player {
@@ -84,11 +83,6 @@ export class GameManager {
     this.rooms.set(roomCode, room);
     this.playerToRoom.set(data.walletAddress, roomCode);
     this.socketToWallet.set(data.socketId, data.walletAddress);
-
-    // Persist to database (async, non-blocking)
-    this.persistRoomToDatabase(room).catch(err => 
-      console.error('Database persist error (non-critical):', err)
-    );
 
     console.log(`✅ Room ${roomCode} created by ${data.playerName} (${room.players.size}/${room.maxPlayers})`);
     
@@ -263,25 +257,6 @@ export class GameManager {
     }
 
     return { roomCode, room };
-  }
-
-  /**
-   * Persist room to database (async, non-blocking)
-   */
-  private async persistRoomToDatabase(room: Room): Promise<void> {
-    try {
-      await supabase.from('game_rooms').insert({
-        room_code: room.roomCode,
-        host_id: room.hostAddress,
-        map_id: room.mapId,
-        status: room.status,
-        current_players: room.players.size,
-        max_players: room.maxPlayers,
-      });
-    } catch (error) {
-      // Non-critical, just log
-      console.error('Database persistence failed:', error);
-    }
   }
 
   /**
