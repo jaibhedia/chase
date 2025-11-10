@@ -14,3 +14,4 @@ server/*.log
 
 .env.example
 .env.production
+node_modules
