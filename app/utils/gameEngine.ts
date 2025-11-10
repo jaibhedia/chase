@@ -84,9 +84,11 @@ function findSafeSpawnPosition(
 
 export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, serverStartTime?: number) {
   const store = useGameStore.getState();
-  const { gameMode, selectedCharacter, selectedMap, setGamePhase, setPlayers, setGameObjects, setTimeRemaining, setCountdownTimer, setGameResult, updatePlayer } = store;
+  const { gameMode, selectedCharacter, selectedMap, roomPlayers, walletAddress, setGamePhase, setPlayers, setGameObjects, setTimeRemaining, setCountdownTimer, setGameResult, updatePlayer } = store;
 
   if (!gameMode || !selectedCharacter || !selectedMap) return;
+
+  console.log('🎮 Initializing game:', { gameMode, playersInRoom: roomPlayers?.length || 0 });
 
   // Use canvas dimensions directly - no scaling needed
   // Fallback to reasonable defaults if canvas not sized yet
@@ -172,8 +174,46 @@ export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCo
       // Lock the character so it can't be used again
       store.lockCharacter(botChar.id);
     }
+  } else if (gameMode === 'multiplayer' && roomPlayers && roomPlayers.length > 0) {
+    // MULTIPLAYER: Create players from room data
+    console.log('🎮 Creating multiplayer players from room data:', roomPlayers.length, 'players');
+    
+    roomPlayers.forEach((roomPlayer: any, index: number) => {
+      // Skip if this is the local player (already added)
+      if (roomPlayer.wallet_address === walletAddress) return;
+      
+      // Find character by ID
+      const character = characters.find(c => c.id === `character-${roomPlayer.character_id}`);
+      if (!character) {
+        console.warn('Character not found for ID:', roomPlayer.character_id);
+        return;
+      }
+      
+      const spawn = findSafeSpawnPosition(mapWidth, mapHeight, objects, players, 120);
+      
+      const multiplayerPlayer: Player = {
+        id: roomPlayer.wallet_address,
+        x: spawn.x,
+        y: spawn.y,
+        character: character,
+        isBot: false,
+        isChaser: false,
+        tagCount: 0,
+        walletAddress: roomPlayer.wallet_address,
+        powerUpReady: false,
+        powerUpActive: false,
+        powerUpCooldown: 0,
+        isInvisible: false,
+        speedBoostActive: false,
+        trail: [],
+      };
+      
+      players.push(multiplayerPlayer);
+      console.log('✅ Added multiplayer player:', roomPlayer.player_name, character.name);
+    });
+    
+    console.log('🎮 Total players in game:', players.length);
   }
-  // In multiplayer mode, bots will be added via Socket.io when other players join
 
   gameState.players = players;
   setPlayers(players);

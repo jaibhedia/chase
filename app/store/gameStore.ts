@@ -77,6 +77,7 @@ interface GameState {
   winner: Player | null;
   gameMessage: string;
   serverStartTime: number | null; // For multiplayer synchronization
+  roomPlayers: any[]; // Players from multiplayer lobby
 
   // Actions
   setWalletAddress: (address: string | null) => void;
@@ -91,6 +92,7 @@ interface GameState {
   setCountdownTimer: (time: number) => void;
   setGameResult: (winner: Player | null, message: string) => void;
   setServerStartTime: (time: number | null) => void;
+  setRoomPlayers: (players: any[]) => void;
   lockCharacter: (characterId: string) => void;
   unlockCharacter: (characterId: string) => void;
   resetGame: () => void;
@@ -110,6 +112,7 @@ const initialState = {
   winner: null,
   gameMessage: '',
   serverStartTime: null,
+  roomPlayers: [],
 };
 
 export const useGameStore = create<GameState>((set) => ({
@@ -133,6 +136,7 @@ export const useGameStore = create<GameState>((set) => ({
   setGameResult: (winner, message) =>
     set({ winner, gameMessage: message, gamePhase: 'ended' }),
   setServerStartTime: (time) => set({ serverStartTime: time }),
+  setRoomPlayers: (players) => set({ roomPlayers: players }),
   lockCharacter: (characterId) =>
     set((state) => ({
       lockedCharacters: [...state.lockedCharacters, characterId],

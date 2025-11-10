@@ -1,15 +1,41 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { initializeGame } from '../utils/gameEngine';
 import { useSocket } from '../hooks/useSocket';
 
 export default function GameCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { selectedMap, gameMode, serverStartTime } = useGameStore();
+  const { selectedMap, gameMode, serverStartTime, setPlayers } = useGameStore();
   const socket = useSocket();
   const gameInitializedRef = useRef(false);
+
+  // Listen for multiplayer game state updates
+  useEffect(() => {
+    if (gameMode !== 'multiplayer' || !socket) return;
+
+    // Listen for other players' positions and states
+    const handleGameStateUpdate = ({ players: serverPlayers }: any) => {
+      if (serverPlayers && Array.isArray(serverPlayers)) {
+        console.log('📡 Received player data:', serverPlayers.length, 'players');
+        setPlayers(serverPlayers);
+      }
+    };
+
+    const handlePlayerUpdate = ({ playerId, position, state }: any) => {
+      const store = useGameStore.getState();
+      store.updatePlayer(playerId, { ...position, ...state });
+    };
+
+    socket.on('game-state-update', handleGameStateUpdate);
+    socket.on('player-update', handlePlayerUpdate);
+
+    return () => {
+      socket.off('game-state-update', handleGameStateUpdate);
+      socket.off('player-update', handlePlayerUpdate);
+    };
+  }, [socket, gameMode, setPlayers]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
