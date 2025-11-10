@@ -15,3 +15,6 @@ server/*.log
 .env.example
 .env.production
 node_modules
+dist
+index.ts.backup
+migrate.sh

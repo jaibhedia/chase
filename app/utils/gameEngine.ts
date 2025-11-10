@@ -90,6 +90,13 @@ export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCo
 
   console.log('🎮 Initializing game:', { gameMode, playersInRoom: roomPlayers?.length || 0 });
 
+  // Clear any previously locked characters from past games
+  if (gameMode === 'single-player') {
+    store.lockedCharacters.forEach(charId => {
+      store.unlockCharacter(charId);
+    });
+  }
+
   // Use canvas dimensions directly - no scaling needed
   // Fallback to reasonable defaults if canvas not sized yet
   const mapWidth = canvas.width || 1400;
@@ -346,11 +353,24 @@ export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCo
 
   gameLoop();
 
+  // Cleanup function
   return () => {
+    console.log('🧹 Cleaning up game engine');
+    
     window.removeEventListener('keydown', handleKeyDown);
     window.removeEventListener('keyup', handleKeyUp);
+    
     if (animationId) {
       cancelAnimationFrame(animationId);
+    }
+    
+    // Unlock all bot characters for single-player mode
+    if (gameMode === 'single-player') {
+      const currentStore = useGameStore.getState();
+      currentStore.lockedCharacters.forEach(charId => {
+        currentStore.unlockCharacter(charId);
+      });
+      console.log('🔓 Unlocked all bot characters');
     }
   };
 }

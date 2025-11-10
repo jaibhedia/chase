@@ -22,6 +22,7 @@ interface SocketContextType {
     playerName?: string;
   }) => Promise<any>;
   setPlayerReady: (roomCode: string, walletAddress: string) => void;
+  startGame: (roomCode: string) => void;
   sendGameState: (roomCode: string, gameState: any) => void;
   sendPlayerInput: (roomCode: string, input: any) => void;
   sendGameFinished: (roomCode: string, results: any) => void;
@@ -188,6 +189,12 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const startGame = (roomCode: string) => {
+    if (socketRef.current) {
+      socketRef.current.emit('start-game', { roomCode });
+    }
+  };
+
   const sendGameState = (roomCode: string, gameState: any) => {
     if (socketRef.current) {
       socketRef.current.emit('game-state-update', { roomCode, gameState });
@@ -212,6 +219,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       createRoom,
       joinRoom,
       setPlayerReady,
+      startGame,
       sendGameState,
       sendPlayerInput,
       sendGameFinished,

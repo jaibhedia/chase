@@ -11,7 +11,7 @@ import { gameMaps } from '../data/maps';
 export default function MultiplayerLobby() {
   const router = useRouter();
   const { selectedCharacter, selectedMap, gameMode, setMap, setServerStartTime, setRoomPlayers } = useGameStore();
-  const { socket, createRoom, joinRoom, setPlayerReady } = useSocket();
+  const { socket, createRoom, joinRoom, setPlayerReady, startGame } = useSocket();
   
   const [roomCode, setRoomCode] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -50,19 +50,61 @@ export default function MultiplayerLobby() {
       setPublicRooms(rooms);
     });
 
+    // Listen for room state response (periodic sync)
+    socket.on('room-state-response', ({ room, players: syncedPlayers }) => {
+      console.log('🔍 Room state response - DB has:', syncedPlayers?.length, 'players');
+      console.log('   Frontend has:', players.length, 'players');
+      if (syncedPlayers && syncedPlayers.length !== players.length) {
+        console.log('⚠️ DESYNC DETECTED! Updating from:', players.length, 'to:', syncedPlayers.length);
+        setPlayers(syncedPlayers);
+      }
+    });
+
+    // Listen for room updates (comprehensive player sync)
+    socket.on('room-update', ({ room, players: roomPlayers, readyPlayers }) => {
+      console.log('🔄 Room update - Ready players:', readyPlayers);
+      console.log('   Room players count:', roomPlayers?.length);
+      console.log('   Room players:', roomPlayers?.map((p: any) => ({
+        name: p.player_name,
+        ready: p.is_ready,
+        wallet: p.wallet_address?.slice(0, 8)
+      })));
+      if (roomPlayers) {
+        // Force new array reference to trigger React re-render
+        setPlayers([...roomPlayers]);
+      }
+    });
+
     // Listen for player updates
     socket.on('player-joined', ({ players: updatedPlayers, currentPlayers }) => {
-      setPlayers(updatedPlayers);
-      console.log(`Player joined. Current players: ${currentPlayers}`);
+      console.log('➕ Player joined - Total players:', updatedPlayers?.length);
+      if (updatedPlayers) {
+        // Force new array reference to trigger React re-render
+        setPlayers([...updatedPlayers]);
+      }
     });
 
     socket.on('player-left', ({ walletAddress: leftAddress, players: updatedPlayers, currentPlayers }) => {
-      setPlayers(updatedPlayers);
-      console.log(`Player ${leftAddress} left. Current players: ${currentPlayers}`);
+      console.log('➖ Player left:', leftAddress, '- Remaining:', updatedPlayers?.length);
+      if (updatedPlayers) {
+        // Force new array reference to trigger React re-render
+        setPlayers([...updatedPlayers]);
+      }
     });
 
-    socket.on('player-ready-update', ({ players: updatedPlayers }) => {
-      setPlayers(updatedPlayers);
+    socket.on('player-ready-update', ({ players: updatedPlayers, readyCount, totalCount }) => {
+      console.log('✅ Player ready update - Total:', updatedPlayers?.length);
+      console.log('   Ready count:', readyCount, '/', totalCount);
+      console.log('   Players received:', updatedPlayers?.map((p: any) => ({
+        name: p.player_name,
+        ready: p.is_ready,
+        wallet: p.wallet_address?.slice(0, 8)
+      })));
+      if (updatedPlayers) {
+        // Force new array reference to trigger React re-render
+        setPlayers([...updatedPlayers]);
+        console.log('   Updated local state with', updatedPlayers.length, 'players');
+      }
     });
 
     socket.on('game-starting', ({ countdown }) => {
@@ -80,6 +122,8 @@ export default function MultiplayerLobby() {
     return () => {
       console.log('🧹 Cleaning up lobby listeners (keeping socket alive)');
       socket.off('public-rooms-list');
+      socket.off('room-state-response');
+      socket.off('room-update');
       socket.off('player-joined');
       socket.off('player-left');
       socket.off('player-ready-update');
@@ -102,6 +146,18 @@ export default function MultiplayerLobby() {
       return () => clearInterval(interval);
     }
   }, [socket, isInRoom]);
+
+  // Periodic room state check while in room
+  useEffect(() => {
+    if (socket && isInRoom && roomCode) {
+      const interval = setInterval(() => {
+        console.log('🔄 Requesting room state refresh...');
+        socket.emit('get-room-state', { roomCode });
+      }, 2000); // Every 2 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [socket, isInRoom, roomCode]);
 
   const handleCreateRoom = async () => {
     if (!selectedCharacter) {
@@ -530,10 +586,20 @@ export default function MultiplayerLobby() {
           </div>
         )}
 
-        {canStart && (
-          <div className="p-4 bg-purple-500/20 border-2 border-purple-500 rounded-lg mb-4 animate-pulse">
+        {/* Start Game Button (Host Only) */}
+        {isHost && canStart && (
+          <Button
+            onClick={() => startGame(roomCode)}
+            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-6 text-xl mb-4 animate-pulse"
+          >
+            🚀 START GAME
+          </Button>
+        )}
+
+        {!isHost && canStart && (
+          <div className="p-4 bg-purple-500/20 border-2 border-purple-500 rounded-lg mb-4">
             <p className="text-purple-300 text-center font-semibold text-lg">
-              🎮 Game starting soon...
+              ✓ Ready to start! Waiting for host...
             </p>
           </div>
         )}

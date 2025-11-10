@@ -11,6 +11,15 @@ export default function GameCanvas() {
   const { socket } = useSocket();
   const gameInitializedRef = useRef(false);
 
+  // Reset gameInitializedRef when component mounts (for fresh starts)
+  useEffect(() => {
+    return () => {
+      // Reset on unmount so next game can initialize fresh
+      gameInitializedRef.current = false;
+      console.log('🧹 GameCanvas unmounted - reset gameInitializedRef');
+    };
+  }, []);
+
   // Listen for multiplayer game state updates
   useEffect(() => {
     if (gameMode !== 'multiplayer' || !socket) {
@@ -69,9 +78,9 @@ export default function GameCanvas() {
     // SINGLE PLAYER: Start immediately
     if (gameMode === 'single-player' && !gameInitializedRef.current) {
       console.log('🎮 Starting single-player game');
+      gameInitializedRef.current = true; // Set BEFORE initialization to prevent double init
       requestAnimationFrame(() => {
         cleanup = initializeGame(canvas, ctx);
-        gameInitializedRef.current = true;
         console.log('✅ Single-player game initialized');
       });
     }
@@ -79,9 +88,9 @@ export default function GameCanvas() {
     // MULTIPLAYER: Use stored server start time
     if (gameMode === 'multiplayer' && serverStartTime && !gameInitializedRef.current) {
       console.log('🎮 Starting multiplayer game with server time:', serverStartTime);
+      gameInitializedRef.current = true; // Set BEFORE initialization to prevent double init
       requestAnimationFrame(() => {
         cleanup = initializeGame(canvas, ctx, serverStartTime);
-        gameInitializedRef.current = true;
         console.log('✅ Multiplayer game initialized');
       });
     }
@@ -90,7 +99,7 @@ export default function GameCanvas() {
     return () => {
       if (cleanup) cleanup();
       window.removeEventListener('resize', resizeCanvas);
-      gameInitializedRef.current = false;
+      // DON'T reset gameInitializedRef here - keep it true to prevent re-initialization
     };
   }, [selectedMap, gameMode, serverStartTime]);
 

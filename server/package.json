@@ -1,12 +1,12 @@
 {
   "name": "chase-server",
-  "version": "1.0.0",
-  "description": "Chase game multiplayer server",
-  "main": "index.ts",
+  "version": "2.0.0",
+  "description": "Chase game multiplayer server - Refactored architecture",
+  "main": "server.ts",
   "scripts": {
-    "dev": "ts-node index.ts",
+    "dev": "ts-node server.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/server.js",
     "render-build": "npm install && npm run build"
   },
   "dependencies": {
