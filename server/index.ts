@@ -507,6 +507,101 @@ io.on('connection', (socket) => {
         currentPlayers: totalCount,
         readyPlayers: readyCount
       });
+
+      // AUTO-START: Check if all players are ready and room is full
+      const allReady = players?.every(p => p.is_ready) || false;
+      const roomFull = totalCount >= MAX_PLAYERS; // Must have all 4 players
+
+      if (allReady && roomFull) {
+        console.log(`🚀 AUTO-START: All ${totalCount}/${MAX_PLAYERS} players ready in room ${roomCode}!`);
+        
+        // Get room details for game start
+        const { data: fullRoom } = await supabase
+          .from('game_rooms')
+          .select('id, host_id')
+          .eq('room_code', roomCode)
+          .single();
+
+        if (fullRoom) {
+          // Trigger game start (reuse the start-game logic)
+          setTimeout(async () => {
+            try {
+              // Start countdown
+              io.in(roomCode).emit('game-starting', { countdown: COUNTDOWN_SECONDS });
+              
+              console.log(`⏰ Countdown starting for room ${roomCode}`);
+              
+              // Send countdown updates
+              for (let i = COUNTDOWN_SECONDS; i > 0; i--) {
+                const secondsLeft = i;
+                setTimeout(() => {
+                  io.in(roomCode).emit('countdown-tick', { secondsLeft });
+                }, (COUNTDOWN_SECONDS - i) * 1000);
+              }
+              
+              // Create timers FIRST, store immediately for cleanup
+              const countdownTimer = setTimeout(async () => {
+                const gameStartTime = Date.now();
+                
+                await supabase
+                  .from('game_rooms')
+                  .update({ 
+                    status: 'in-progress', 
+                    started_at: new Date().toISOString() 
+                  })
+                  .eq('id', fullRoom.id);
+
+                // Get players for game start
+                const { data: gamePlayers } = await supabase
+                  .from('players_in_room')
+                  .select('*')
+                  .eq('room_id', fullRoom.id);
+
+                // Send synchronized game start with server timestamp and players
+                io.in(roomCode).emit('game-started', { 
+                  serverTime: gameStartTime,
+                  players: gamePlayers || [],
+                  gameDuration: GAME_DURATION / 1000 // in seconds
+                });
+                
+                console.log(`✅ Game started in room ${roomCode} (AUTO-START)`);
+                
+                // Update public rooms list (game started, remove from public list)
+                await broadcastPublicRooms();
+              }, COUNTDOWN_SECONDS * 1000);
+
+              const gameEndTimer = setTimeout(async () => {
+                io.in(roomCode).emit('game-ended', {
+                  serverTime: Date.now()
+                });
+                
+                // Update room status
+                await supabase
+                  .from('game_rooms')
+                  .update({ 
+                    status: 'finished',
+                    finished_at: new Date().toISOString()
+                  })
+                  .eq('id', fullRoom.id);
+                  
+                // Update public rooms list
+                await broadcastPublicRooms();
+                
+                // Clean up timers
+                gameTimers.delete(roomCode);
+                
+                console.log(`Game ended in room ${roomCode}`);
+              }, COUNTDOWN_SECONDS * 1000 + GAME_DURATION);
+
+              // Store timer references IMMEDIATELY (before they fire)
+              gameTimers.set(roomCode, { countdownTimer, gameEndTimer });
+              console.log(`⏱️  Stored game timers for room ${roomCode}`);
+            } catch (error) {
+              console.error('Error auto-starting game:', error);
+            }
+          }, 1000); // 1 second delay before countdown starts
+        }
+      }
     } catch (error) {
       console.error('Error player ready:', error);
     }
@@ -555,15 +650,15 @@ io.on('connection', (socket) => {
         .eq('room_id', room.id);
 
       const allReady = players?.every(p => p.is_ready) || false;
-      const enoughPlayers = (players?.length || 0) >= MIN_PLAYERS;
+      const roomFull = (players?.length || 0) >= MAX_PLAYERS; // Need all 4 players
 
       if (!allReady) {
         socket.emit('error', { message: 'Not all players are ready' });
         return;
       }
 
-      if (!enoughPlayers) {
-        socket.emit('error', { message: `Need at least ${MIN_PLAYERS} players to start` });
+      if (!roomFull) {
+        socket.emit('error', { message: `Need all ${MAX_PLAYERS} players to start (currently ${players?.length || 0})` });
         return;
       }
 
