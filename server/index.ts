@@ -239,7 +239,7 @@ io.on('connection', (socket) => {
         return;
       }
 
-      // Add host as first player
+      // Add host as first player (auto-ready)
       const { error: playerError } = await supabase
         .from('players_in_room')
         .insert({
@@ -247,7 +247,7 @@ io.on('connection', (socket) => {
           wallet_address: walletAddress,
           character_id: characterId,
           player_name: playerName || `Player ${walletAddress.slice(0, 6)}`,
-          is_ready: false // Host must click ready like everyone else
+          is_ready: true // Host is automatically ready
         });
 
       if (playerError) {
@@ -274,7 +274,16 @@ io.on('connection', (socket) => {
         players: players || []
       });
 
+      // Also send room-update to sync state
+      io.in(roomCode).emit('room-update', {
+        players: players || [],
+        currentPlayers: 1,
+        maxPlayers: MAX_PLAYERS,
+        readyPlayers: 1  // Host is ready
+      });
+
       console.log(`🏠 Room ${roomCode} created by ${walletAddress.slice(0, 8)} ${isPublic ? '(PUBLIC)' : '(PRIVATE)'}`);
+      console.log(`   Host: temp_${walletAddress.slice(5, 8)}✓ (auto-ready)`);
 
       // Update public rooms list if public
       if (isPublic) {
@@ -298,12 +307,13 @@ io.on('connection', (socket) => {
       // Validate input
       const parsed = JoinRoomSchema.safeParse(data);
       if (!parsed.success) {
-        console.error('Invalid join-room data:', parsed.error.flatten());
-        socket.emit('error', { message: 'Invalid input data' });
+        console.error('❌ Invalid join-room data:', parsed.error.flatten().fieldErrors);
+        socket.emit('error', { message: `Invalid input: ${Object.keys(parsed.error.flatten().fieldErrors).join(', ')}` });
         return;
       }
 
       const { roomCode, walletAddress, characterId, playerName } = parsed.data;
+      console.log(`🔍 Join attempt - Room: ${roomCode}, Player: ${walletAddress.slice(0, 8)}, Char: ${characterId}`);
 
       // Get room
       const { data: room, error } = await supabase
@@ -351,7 +361,20 @@ io.on('connection', (socket) => {
           reconnected: true
         });
 
-        console.log(`Player ${walletAddress} reconnected to room ${roomCode}`);
+        // Notify others that player reconnected
+        io.in(roomCode).emit('player-joined', {
+          players: players || [],
+          currentPlayers: room.current_players,
+          maxPlayers: room.max_players
+        });
+
+        io.in(roomCode).emit('room-update', {
+          players: players || [],
+          currentPlayers: room.current_players,
+          maxPlayers: room.max_players
+        });
+
+        console.log(`🔄 Player ${walletAddress.slice(0, 8)} reconnected to room ${roomCode}`);
         return;
       }
 
