@@ -3,48 +3,42 @@ import { GAME_CONFIG } from '../config/constants';
 import { generateRoomCode } from '../utils/helpers';
 
 /**
- * GameManager - Core business logic for the chase game
- * Manages game state, rooms, players, and game lifecycle
+ * GameManager - Pure in-memory multiplayer game state management
+ * Database is only used for persistence, NOT for game logic
  */
 
 interface Player {
-  wallet_address: string;
-  player_name: string;
-  character_id: number;
-  is_ready: boolean;
-  is_host: boolean;
-  position?: { x: number; y: number };
-  score?: number;
+  socketId: string;
+  walletAddress: string;
+  playerName: string;
+  characterId: number;
+  isReady: boolean;
+  isHost: boolean;
+  isConnected: boolean;
+  joinedAt: number;
 }
 
-interface GameRoom {
-  room_code: string;
-  host_address: string;
-  map_id: string;
-  game_mode: string;
-  status: 'waiting' | 'playing' | 'finished';
-  current_players: number;
-  max_players: number;
-  is_public: boolean;
-  created_at?: string;
-}
-
-interface GameState {
+interface Room {
   roomCode: string;
-  startTime: number;
-  endTime: number;
-  players: Map<string, { x: number; y: number; score: number }>;
-  status: 'active' | 'finished';
+  hostAddress: string;
+  mapId: string;
+  players: Map<string, Player>; // walletAddress -> Player
+  status: 'waiting' | 'countdown' | 'playing' | 'finished';
+  maxPlayers: number;
+  createdAt: number;
+  startTime?: number;
 }
 
 export class GameManager {
-  private games = new Map<string, GameState>(); // roomCode -> game state
-  private gameTimers = new Map<string, { countdownTimer: NodeJS.Timeout; gameEndTimer: NodeJS.Timeout }>();
-  private gameStartTimes = new Map<string, number>();
-  private socketManager: any = null; // Will be set by SocketManager
+  // IN-MEMORY STATE - Source of truth
+  private rooms = new Map<string, Room>();
+  private playerToRoom = new Map<string, string>(); // walletAddress -> roomCode
+  private socketToWallet = new Map<string, string>(); // socketId -> walletAddress
+  
+  private socketManager: any = null;
 
   constructor() {
-    this.startMonitoringService();
+    console.log('🎮 GameManager initialized (in-memory mode)');
   }
 
   setSocketManager(socketManager: any) {
@@ -52,439 +46,261 @@ export class GameManager {
   }
 
   /**
-   * Create a new game room
+   * Create a new room - Pure in-memory
    */
-  async createRoom(data: {
+  createRoom(data: {
+    socketId: string;
     walletAddress: string;
     mapId: string;
-    gameMode: string;
     characterId: number;
     playerName: string;
-    isPublic?: boolean;
-  }) {
+  }): string {
     const roomCode = generateRoomCode();
     
-    try {
-      // Simple database insert - just store the room info
-      const { error: roomError } = await supabase
-        .from('game_rooms')
-        .insert({
-          room_code: roomCode,
-          host_id: data.walletAddress,
-          map_id: data.mapId,
-          game_mode: data.gameMode,
-          status: 'waiting',
-          current_players: 1,
-          max_players: GAME_CONFIG.MAX_PLAYERS,
-        });
+    // Create room in memory
+    const room: Room = {
+      roomCode,
+      hostAddress: data.walletAddress,
+      mapId: data.mapId,
+      players: new Map(),
+      status: 'waiting',
+      maxPlayers: GAME_CONFIG.MAX_PLAYERS,
+      createdAt: Date.now()
+    };
 
-      if (roomError) {
-        console.error('❌ Database error (non-critical):', roomError);
-        // Continue anyway - we can run without database
-      }
+    // Add host as first player
+    const hostPlayer: Player = {
+      socketId: data.socketId,
+      walletAddress: data.walletAddress,
+      playerName: data.playerName,
+      characterId: data.characterId,
+      isReady: true, // Host is auto-ready
+      isHost: true,
+      isConnected: true,
+      joinedAt: Date.now()
+    };
 
-      // Store player in database
-      const { error: playerError } = await supabase
-        .from('players_in_room')
-        .insert({
-          room_code: roomCode,
-          wallet_address: data.walletAddress,
-          player_name: data.playerName,
-          character_id: data.characterId,
-          is_ready: true,
-        });
+    room.players.set(data.walletAddress, hostPlayer);
+    this.rooms.set(roomCode, room);
+    this.playerToRoom.set(data.walletAddress, roomCode);
+    this.socketToWallet.set(data.socketId, data.walletAddress);
 
-      if (playerError) {
-        console.error('❌ Player database error (non-critical):', playerError);
-      }
+    // Persist to database (async, non-blocking)
+    this.persistRoomToDatabase(room).catch(err => 
+      console.error('Database persist error (non-critical):', err)
+    );
 
-      console.log(`🎮 Room created: ${roomCode} by ${data.walletAddress.slice(0, 8)}...`);
-      console.log(`🌐 Public: ${data.isPublic ? 'YES' : 'NO'}`);
-
-      return { roomCode };
-    } catch (error) {
-      console.error('❌ Error creating room:', error);
-      // Return roomCode anyway - game can work without database
-      return { roomCode };
-    }
+    console.log(`✅ Room ${roomCode} created by ${data.playerName} (${room.players.size}/${room.maxPlayers})`);
+    
+    return roomCode;
   }
 
   /**
-   * Join an existing room
+   * Join existing room - Pure in-memory
    */
-  async joinRoom(data: {
-    roomCode: string;
+  joinRoom(data: {
+    socketId: string;
     walletAddress: string;
+    roomCode: string;
     characterId: number;
     playerName: string;
-  }) {
-    try {
-      // Check if room exists and has space
-      const { data: room, error: roomError } = await supabase
-        .from('game_rooms')
-        .select('*')
-        .eq('room_code', data.roomCode)
-        .eq('status', 'waiting')
-        .single();
-
-      if (roomError || !room) {
-        throw new Error('Room not found or already started');
-      }
-
-      if (room.current_players >= GAME_CONFIG.MAX_PLAYERS) {
-        throw new Error('Room is full');
-      }
-
-      // Check if player already in room
-      const { data: existingPlayer } = await supabase
-        .from('players_in_room')
-        .select('*')
-        .eq('room_code', data.roomCode)
-        .eq('wallet_address', data.walletAddress)
-        .single();
-
-      if (existingPlayer) {
-        console.log(`🔄 Player ${data.walletAddress} rejoining room ${data.roomCode}`);
-        return { roomCode: data.roomCode, room };
-      }
-
-      // Add player to room
-      const { error: playerError } = await supabase
-        .from('players_in_room')
-        .insert({
-          room_code: data.roomCode,
-          wallet_address: data.walletAddress,
-          player_name: data.playerName,
-          character_id: data.characterId,
-          is_ready: false,
-        });
-
-      if (playerError) {
-        console.error('❌ Player insert error (non-critical):', playerError);
-      }
-
-      // Update room player count
-      const { error: updateError } = await supabase
-        .from('game_rooms')
-        .update({ current_players: room.current_players + 1 })
-        .eq('room_code', data.roomCode);
-
-      if (updateError) {
-        console.error('❌ Update error (non-critical):', updateError);
-      }
-
-      console.log(`➕ Player ${data.walletAddress.slice(0, 8)}... joined room ${data.roomCode}`);
-
-      return { roomCode: data.roomCode };
-    } catch (error) {
-      console.error('❌ Error joining room:', error);
-      throw error;
+  }): Room {
+    const room = this.rooms.get(data.roomCode);
+    
+    if (!room) {
+      throw new Error('Room not found');
     }
+
+    if (room.status !== 'waiting') {
+      throw new Error('Game already started');
+    }
+
+    if (room.players.size >= room.maxPlayers) {
+      throw new Error('Room is full');
+    }
+
+    // Check if player already in room (reconnection)
+    const existingPlayer = room.players.get(data.walletAddress);
+    if (existingPlayer) {
+      existingPlayer.socketId = data.socketId;
+      existingPlayer.isConnected = true;
+      this.socketToWallet.set(data.socketId, data.walletAddress);
+      console.log(`🔄 ${data.playerName} reconnected to ${data.roomCode}`);
+      return room;
+    }
+
+    // Add new player
+    const player: Player = {
+      socketId: data.socketId,
+      walletAddress: data.walletAddress,
+      playerName: data.playerName,
+      characterId: data.characterId,
+      isReady: false,
+      isHost: false,
+      isConnected: true,
+      joinedAt: Date.now()
+    };
+
+    room.players.set(data.walletAddress, player);
+    this.playerToRoom.set(data.walletAddress, data.roomCode);
+    this.socketToWallet.set(data.socketId, data.walletAddress);
+
+    console.log(`➕ ${data.playerName} joined ${data.roomCode} (${room.players.size}/${room.maxPlayers})`);
+    
+    return room;
   }
 
   /**
    * Mark player as ready
    */
-  async markPlayerReady(roomCode: string, walletAddress: string) {
-    try {
-      const { error } = await supabase
-        .from('players_in_room')
-        .update({ is_ready: true })
-        .eq('room_code', roomCode)
-        .eq('wallet_address', walletAddress);
+  markPlayerReady(socketId: string): Room | null {
+    const walletAddress = this.socketToWallet.get(socketId);
+    if (!walletAddress) return null;
 
-      if (error) throw error;
+    const roomCode = this.playerToRoom.get(walletAddress);
+    if (!roomCode) return null;
 
-      console.log(`✅ Player ${walletAddress} marked ready in ${roomCode}`);
+    const room = this.rooms.get(roomCode);
+    if (!room) return null;
 
-      // Get updated player list
-      const { data: players } = await supabase
-        .from('players_in_room')
-        .select('*')
-        .eq('room_code', roomCode);
+    const player = room.players.get(walletAddress);
+    if (!player) return null;
 
-      const readyCount = players?.filter(p => p.is_ready).length || 0;
-      const totalCount = players?.length || 0;
+    player.isReady = true;
+    console.log(`✅ ${player.playerName} is ready in ${roomCode}`);
 
-      return {
-        readyCount,
-        totalCount,
-        players: players || []
-      };
-    } catch (error) {
-      console.error('❌ Error marking player ready:', error);
-      throw error;
-    }
+    return room;
   }
 
   /**
-   * Check if game should auto-start
+   * Get room state
    */
-  shouldAutoStart(players: any[]): boolean {
-    const totalCount = players.length;
-    const readyCount = players.filter(p => p.is_ready).length;
+  getRoom(roomCode: string): Room | null {
+    return this.rooms.get(roomCode) || null;
+  }
+
+  /**
+   * Get all players in room
+   */
+  getRoomPlayers(roomCode: string): Player[] {
+    const room = this.rooms.get(roomCode);
+    if (!room) return [];
+    return Array.from(room.players.values());
+  }
+
+  /**
+   * Check if all players are ready
+   */
+  areAllPlayersReady(roomCode: string): boolean {
+    const room = this.rooms.get(roomCode);
+    if (!room || room.players.size < GAME_CONFIG.MIN_PLAYERS) return false;
     
-    const roomFull = totalCount >= GAME_CONFIG.MAX_PLAYERS;
-    const allReady = readyCount === totalCount && totalCount > 0;
-
-    return roomFull && allReady;
+    return Array.from(room.players.values()).every(p => p.isReady);
   }
 
   /**
-   * Start the game countdown
+   * Start game
    */
-  async startGame(roomCode: string) {
+  startGame(roomCode: string): boolean {
+    const room = this.rooms.get(roomCode);
+    if (!room) return false;
+
+    if (room.status !== 'waiting') return false;
+    if (room.players.size < GAME_CONFIG.MIN_PLAYERS) return false;
+
+    room.status = 'countdown';
+    room.startTime = Date.now() + 3000; // 3 second countdown
+
+    console.log(`🎮 Game starting in ${roomCode} with ${room.players.size} players`);
+
+    // Auto-transition to playing after countdown
+    setTimeout(() => {
+      if (room.status === 'countdown') {
+        room.status = 'playing';
+        console.log(`▶️ Game ${roomCode} is now playing`);
+      }
+    }, 3000);
+
+    return true;
+  }
+
+  /**
+   * Handle player disconnect
+   */
+  handleDisconnect(socketId: string): { roomCode: string; room: Room } | null {
+    const walletAddress = this.socketToWallet.get(socketId);
+    if (!walletAddress) return null;
+
+    const roomCode = this.playerToRoom.get(walletAddress);
+    if (!roomCode) return null;
+
+    const room = this.rooms.get(roomCode);
+    if (!room) return null;
+
+    const player = room.players.get(walletAddress);
+    if (!player) return null;
+
+    // Mark as disconnected but don't remove (60s grace period)
+    player.isConnected = false;
+    console.log(`👋 ${player.playerName} disconnected from ${roomCode}`);
+
+    // If game hasn't started, remove player after 10s
+    if (room.status === 'waiting') {
+      setTimeout(() => {
+        if (!player.isConnected && room.status === 'waiting') {
+          room.players.delete(walletAddress);
+          this.playerToRoom.delete(walletAddress);
+          this.socketToWallet.delete(socketId);
+          console.log(`❌ ${player.playerName} removed from ${roomCode} (timeout)`);
+          
+          // If room is empty, delete it
+          if (room.players.size === 0) {
+            this.rooms.delete(roomCode);
+            console.log(`🗑️ Room ${roomCode} deleted (empty)`);
+          }
+        }
+      }, 10000);
+    }
+
+    return { roomCode, room };
+  }
+
+  /**
+   * Persist room to database (async, non-blocking)
+   */
+  private async persistRoomToDatabase(room: Room): Promise<void> {
     try {
-      // Verify all players are ready
-      const { data: room } = await supabase
-        .from('game_rooms')
-        .select('*')
-        .eq('room_code', roomCode)
-        .single();
-
-      if (!room) throw new Error('Room not found');
-
-      const { data: players } = await supabase
-        .from('players_in_room')
-        .select('*')
-        .eq('room_code', roomCode);
-
-      if (!players || players.length < GAME_CONFIG.MIN_PLAYERS) {
-        throw new Error('Not enough players');
-      }
-
-      const allReady = players.every(p => p.is_ready);
-      if (!allReady) {
-        throw new Error('Not all players are ready');
-      }
-
-      // Update room status
-      const { error } = await supabase
-        .from('game_rooms')
-        .update({ status: 'playing' })
-        .eq('room_code', roomCode);
-
-      if (error) throw error;
-
-      console.log(`🎮 Starting game in room ${roomCode}`);
-
-      // Initialize game state
-      const gameState: GameState = {
-        roomCode,
-        startTime: Date.now() + (GAME_CONFIG.COUNTDOWN_SECONDS * 1000),
-        endTime: Date.now() + (GAME_CONFIG.COUNTDOWN_SECONDS * 1000) + GAME_CONFIG.GAME_DURATION,
-        players: new Map(),
-        status: 'active'
-      };
-
-      players.forEach(player => {
-        gameState.players.set(player.wallet_address, {
-          x: 0,
-          y: 0,
-          score: 0
-        });
+      await supabase.from('game_rooms').insert({
+        room_code: room.roomCode,
+        host_id: room.hostAddress,
+        map_id: room.mapId,
+        status: room.status,
+        current_players: room.players.size,
+        max_players: room.maxPlayers,
       });
-
-      this.games.set(roomCode, gameState);
-      this.gameStartTimes.set(roomCode, Date.now());
-
-      return { success: true, gameState };
     } catch (error) {
-      console.error('❌ Error starting game:', error);
-      throw error;
+      // Non-critical, just log
+      console.error('Database persistence failed:', error);
     }
   }
 
   /**
-   * Update player position during game
+   * Get room by socket ID
    */
-  updatePlayerPosition(roomCode: string, walletAddress: string, x: number, y: number) {
-    const game = this.games.get(roomCode);
-    if (!game) {
-      throw new Error('Game not found');
-    }
+  getRoomBySocketId(socketId: string): Room | null {
+    const walletAddress = this.socketToWallet.get(socketId);
+    if (!walletAddress) return null;
 
-    const player = game.players.get(walletAddress);
-    if (player) {
-      player.x = x;
-      player.y = y;
-    }
+    const roomCode = this.playerToRoom.get(walletAddress);
+    if (!roomCode) return null;
 
-    return game;
+    return this.rooms.get(roomCode) || null;
   }
 
   /**
-   * End the game and calculate results
+   * Debug: Get all rooms
    */
-  async endGame(roomCode: string) {
-    try {
-      const game = this.games.get(roomCode);
-      if (!game) {
-        console.warn(`⚠️ Game ${roomCode} not found in memory`);
-        return;
-      }
-
-      game.status = 'finished';
-
-      // Clean up timers
-      const timers = this.gameTimers.get(roomCode);
-      if (timers) {
-        clearTimeout(timers.countdownTimer);
-        clearTimeout(timers.gameEndTimer);
-        this.gameTimers.delete(roomCode);
-      }
-
-      // Update room status
-      await supabase
-        .from('game_rooms')
-        .update({ status: 'finished' })
-        .eq('room_code', roomCode);
-
-      // Update player stats
-      const players = Array.from(game.players.entries());
-      for (const [walletAddress, playerData] of players) {
-        await supabase
-          .from('player_stats')
-          .upsert({
-            wallet_address: walletAddress,
-            total_games: 1,
-            total_score: playerData.score || 0
-          }, {
-            onConflict: 'wallet_address',
-            ignoreDuplicates: false
-          });
-      }
-
-      console.log(`🏁 Game ended in room ${roomCode}`);
-
-      // Clean up game state
-      this.games.delete(roomCode);
-      this.gameStartTimes.delete(roomCode);
-
-      return { players };
-    } catch (error) {
-      console.error('❌ Error ending game:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Leave room
-   */
-  async leaveRoom(roomCode: string, walletAddress: string) {
-    try {
-      // Remove player from room
-      const { error: deleteError } = await supabase
-        .from('players_in_room')
-        .delete()
-        .eq('room_code', roomCode)
-        .eq('wallet_address', walletAddress);
-
-      if (deleteError) throw deleteError;
-
-      // Get remaining players
-      const { data: remainingPlayers } = await supabase
-        .from('players_in_room')
-        .select('*')
-        .eq('room_code', roomCode);
-
-      if (!remainingPlayers || remainingPlayers.length === 0) {
-        // Delete empty room
-        await supabase
-          .from('game_rooms')
-          .delete()
-          .eq('room_code', roomCode);
-
-        console.log(`🗑️ Empty room ${roomCode} deleted`);
-      } else {
-        // Update player count
-        await supabase
-          .from('game_rooms')
-          .update({ current_players: remainingPlayers.length })
-          .eq('room_code', roomCode);
-
-        // If host left, assign new host
-        const wasHost = remainingPlayers.every(p => !p.is_host);
-        if (wasHost) {
-          await supabase
-            .from('players_in_room')
-            .update({ is_host: true, is_ready: true })
-            .eq('room_code', roomCode)
-            .eq('wallet_address', remainingPlayers[0].wallet_address);
-
-          console.log(`👑 New host assigned: ${remainingPlayers[0].wallet_address}`);
-        }
-      }
-
-      console.log(`👋 Player ${walletAddress} left room ${roomCode}`);
-
-      return { success: true };
-    } catch (error) {
-      console.error('❌ Error leaving room:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get game state
-   */
-  getGame(roomCode: string): GameState | undefined {
-    return this.games.get(roomCode);
-  }
-
-  /**
-   * Get room with players
-   */
-  async getRoom(roomCode: string) {
-    const { data: room } = await supabase
-      .from('game_rooms')
-      .select('*')
-      .eq('room_code', roomCode)
-      .single();
-
-    const { data: players } = await supabase
-      .from('players_in_room')
-      .select('*')
-      .eq('room_code', roomCode);
-
-    return { room, players: players || [] };
-  }
-
-  /**
-   * Get public rooms
-   */
-  async getPublicRooms() {
-    const { data: publicRooms } = await supabase
-      .from('game_rooms')
-      .select('room_code, current_players, max_players, map_id, is_public')
-      .eq('status', 'waiting')
-      .eq('is_public', true)
-      .order('created_at', { ascending: false });
-
-    return publicRooms || [];
-  }
-
-  /**
-   * Store game timers
-   */
-  setGameTimers(roomCode: string, timers: { countdownTimer: NodeJS.Timeout; gameEndTimer: NodeJS.Timeout }) {
-    this.gameTimers.set(roomCode, timers);
-  }
-
-  /**
-   * Monitor for stuck games and cleanup
-   */
-  private startMonitoringService() {
-    setInterval(() => {
-      const now = Date.now();
-      for (const [roomCode, startTime] of this.gameStartTimes.entries()) {
-        if (now - startTime > GAME_CONFIG.MAX_GAME_TIMEOUT) {
-          console.log(`⏰ Game ${roomCode} timed out, cleaning up...`);
-          this.endGame(roomCode).catch(console.error);
-        }
-      }
-    }, 60000); // Check every minute
+  getAllRooms(): Room[] {
+    return Array.from(this.rooms.values());
   }
 }
-
-export const gameManager = new GameManager();
