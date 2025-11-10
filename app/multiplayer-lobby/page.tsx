@@ -34,7 +34,12 @@ export default function MultiplayerLobby() {
   }, []);
 
   useEffect(() => {
-    if (!socket) return;
+    if (!socket) {
+      console.log('⏳ Waiting for socket connection...');
+      return;
+    }
+
+    console.log('🎮 Setting up lobby socket listeners');
 
     // Listen for player updates
     socket.on('player-joined', ({ players: updatedPlayers, currentPlayers }) => {
@@ -56,20 +61,22 @@ export default function MultiplayerLobby() {
     });
 
     socket.on('game-started', ({ serverTime }) => {
-      console.log('Game started! Server time:', serverTime, 'Players:', players.length);
+      console.log('🚀 Game started! Server time:', serverTime, 'Players:', players.length);
       setServerStartTime(serverTime); // Save to store
       setRoomPlayers(players); // Save players to store for game initialization
+      console.log('💾 Saved serverStartTime and roomPlayers to store, navigating to /game...');
       router.push('/game');
     });
 
     return () => {
+      console.log('🧹 Cleaning up lobby listeners (keeping socket alive)');
       socket.off('player-joined');
       socket.off('player-left');
       socket.off('player-ready-update');
       socket.off('game-starting');
       socket.off('game-started');
     };
-  }, [socket, router]);
+  }, [socket, router, players.length, setServerStartTime, setRoomPlayers]);
 
   const handleCreateRoom = async () => {
     if (!selectedCharacter) {

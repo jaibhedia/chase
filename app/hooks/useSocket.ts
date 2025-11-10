@@ -1,45 +1,66 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
 
+// Global socket instance - shared across all components
+let globalSocket: Socket | null = null;
+
 export function useSocket() {
-  const socketRef = useRef<Socket | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
-    // Initialize socket connection
-    socketRef.current = io(SOCKET_URL, {
-      autoConnect: true,
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    });
+    // If socket already exists globally, reuse it
+    if (globalSocket && globalSocket.connected) {
+      console.log('♻️ Reusing existing socket connection:', globalSocket.id);
+      setSocket(globalSocket);
+      return;
+    }
 
-    const socket = socketRef.current;
+    // Create new socket connection only if none exists
+    if (!globalSocket) {
+      console.log('🔌 Creating new socket connection to:', SOCKET_URL);
+      globalSocket = io(SOCKET_URL, {
+        autoConnect: true,
+        reconnection: true,
+        reconnectionAttempts: 10,
+        reconnectionDelay: 1000,
+        transports: ['websocket', 'polling'],
+      });
 
-    socket.on('connect', () => {
-      console.log('Connected to game server:', socket.id);
-    });
+      globalSocket.on('connect', () => {
+        console.log('✅ Connected to game server:', globalSocket?.id);
+      });
 
-    socket.on('disconnect', () => {
-      console.log('Disconnected from game server');
-    });
+      globalSocket.on('disconnect', (reason) => {
+        console.log('❌ Disconnected from game server:', reason);
+      });
 
-    socket.on('error', (error: { message: string }) => {
-      console.error('Socket error:', error.message);
-    });
+      globalSocket.on('error', (error: { message: string }) => {
+        console.error('Socket error:', error.message);
+      });
 
+      setSocket(globalSocket);
+    }
+
+    // Don't disconnect on unmount - keep connection alive for navigation
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+      console.log('🔄 Component unmounting, keeping socket alive');
     };
   }, []);
 
-  return socketRef.current;
+  return socket;
+}
+
+// Cleanup function to manually disconnect (call on app exit, not page navigation)
+export function disconnectSocket() {
+  if (globalSocket) {
+    console.log('🔌 Manually disconnecting socket');
+    globalSocket.disconnect();
+    globalSocket = null;
+  }
 }
 
 // Helper hook for multiplayer game room

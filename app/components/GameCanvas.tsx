@@ -13,7 +13,14 @@ export default function GameCanvas() {
 
   // Listen for multiplayer game state updates
   useEffect(() => {
-    if (gameMode !== 'multiplayer' || !socket) return;
+    if (gameMode !== 'multiplayer' || !socket) {
+      if (gameMode === 'multiplayer' && !socket) {
+        console.log('⏳ Multiplayer mode but socket not ready yet...');
+      }
+      return;
+    }
+
+    console.log('🎮 Setting up GameCanvas socket listeners for multiplayer');
 
     // Listen for other players' positions and states
     const handleGameStateUpdate = ({ players: serverPlayers }: any) => {
@@ -32,6 +39,7 @@ export default function GameCanvas() {
     socket.on('player-update', handlePlayerUpdate);
 
     return () => {
+      console.log('🧹 Cleaning up GameCanvas listeners (keeping socket alive)');
       socket.off('game-state-update', handleGameStateUpdate);
       socket.off('player-update', handlePlayerUpdate);
     };
