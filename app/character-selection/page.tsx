@@ -166,7 +166,7 @@ export default function CharacterSelection() {
   if (!gameMode) return null;
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 p-4 relative overflow-hidden">
+    <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 p-2 md:p-4 relative overflow-hidden md:overflow-visible">
       {/* Animated Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {[...Array(20)].map((_, i) => (
@@ -190,13 +190,14 @@ export default function CharacterSelection() {
         ))}
       </div>
 
-      <div className="w-full max-w-7xl mx-auto text-center space-y-8 p-4 relative z-10">
+      <div className="w-full max-w-7xl mx-auto text-center space-y-4 md:space-y-8 p-2 md:p-4 relative z-10 overflow-y-auto md:overflow-visible pb-20 md:pb-4">
         <motion.div
           initial={{ scale: 0.5, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", duration: 0.6 }}
+          className="py-2 md:py-0"
         >
-          <h1 className="text-6xl md:text-7xl font-black text-white mb-4">
+          <h1 className="text-3xl md:text-7xl font-black text-white mb-2 md:mb-4">
             <span className="bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 text-transparent bg-clip-text">
               SELECT CHARACTER
             </span>
@@ -206,13 +207,13 @@ export default function CharacterSelection() {
             transition={{ duration: 2, repeat: Infinity }}
             className="inline-block"
           >
-            <p className="text-2xl font-black mb-8 px-6 py-3 rounded-full border-4 border-yellow-400 bg-yellow-400/20 text-yellow-300 uppercase tracking-wider">
+            <p className="text-sm md:text-2xl font-black mb-4 md:mb-8 px-3 md:px-6 py-1.5 md:py-3 rounded-full border-2 md:border-4 border-yellow-400 bg-yellow-400/20 text-yellow-300 uppercase tracking-wider">
               {gameMode === 'single-player' ? '🤖 SINGLE PLAYER' : '👥 MULTIPLAYER'}
             </p>
           </motion.div>
         </motion.div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
           {characters.map((character, index) => {
             const isLocked = lockedCharacters.includes(character.id);
             
@@ -229,20 +230,20 @@ export default function CharacterSelection() {
               >
                 {/* Locked Overlay */}
                 {isLocked && (
-                  <div className="absolute inset-0 z-20 rounded-2xl bg-black/70 backdrop-blur-sm flex items-center justify-center border-4 border-red-500">
+                  <div className="absolute inset-0 z-20 rounded-xl md:rounded-2xl bg-black/70 backdrop-blur-sm flex items-center justify-center border-2 md:border-4 border-red-500">
                     <div className="text-center">
-                      <div className="text-6xl mb-2">🔒</div>
-                      <p className="text-red-400 font-black text-xl uppercase">Locked</p>
-                      <p className="text-gray-400 text-sm mt-1">Already Taken</p>
+                      <div className="text-3xl md:text-6xl mb-1 md:mb-2">🔒</div>
+                      <p className="text-red-400 font-black text-sm md:text-xl uppercase">Locked</p>
+                      <p className="text-gray-400 text-xs md:text-sm mt-0.5 md:mt-1">Already Taken</p>
                     </div>
                   </div>
                 )}
                 
                 <div 
-                  className="absolute inset-0 rounded-2xl blur-xl opacity-50 group-hover:opacity-100 transition-opacity duration-300"
+                  className="absolute inset-0 rounded-xl md:rounded-2xl blur-xl opacity-50 group-hover:opacity-100 transition-opacity duration-300"
                   style={{ backgroundColor: character.color }}
                 />
-                <div className="relative bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-xl rounded-2xl p-6 border-4 group-hover:border-4 transition-all"
+                <div className="relative bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-xl rounded-xl md:rounded-2xl p-3 md:p-6 border-2 md:border-4 group-hover:border-4 transition-all"
                   style={{ borderColor: `${character.color}80` }}
                 >
                 {/* Character Icon with Sprite */}
@@ -255,11 +256,11 @@ export default function CharacterSelection() {
                     ]
                   }}
                   transition={{ duration: 2, repeat: Infinity }}
-                  className="w-32 h-32 rounded-full mx-auto mb-4 flex items-center justify-center border-4 border-white/20 relative overflow-hidden"
+                  className="w-20 h-20 md:w-32 md:h-32 rounded-full mx-auto mb-2 md:mb-4 flex items-center justify-center border-2 md:border-4 border-white/20 relative overflow-hidden"
                   style={{ backgroundColor: character.color }}
                 >
                   <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
-                  <div className="relative z-10">
+                  <div className="relative z-10 scale-75 md:scale-100">
                     {character.image ? (
                       <img 
                         src={character.image} 
@@ -273,32 +274,32 @@ export default function CharacterSelection() {
                 </motion.div>
 
                 {/* Character Name */}
-                <h3 className="text-2xl font-black text-white mb-3 uppercase tracking-wider">{character.name}</h3>
+                <h3 className="text-sm md:text-2xl font-black text-white mb-1.5 md:mb-3 uppercase tracking-wider">{character.name}</h3>
                 
                 {/* Speed Info */}
-                <div className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-lg p-3 mb-4 border-2 border-blue-500/50">
-                  <div className="flex items-center justify-center gap-2 mb-1">
-                    <Zap className="w-4 h-4 text-blue-400" />
-                    <p className="font-black text-blue-300 text-xs uppercase">Movement Speed</p>
+                <div className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-lg p-1.5 md:p-3 mb-2 md:mb-4 border md:border-2 border-blue-500/50">
+                  <div className="flex items-center justify-center gap-1 md:gap-2 mb-0.5 md:mb-1">
+                    <Zap className="w-3 h-3 md:w-4 md:h-4 text-blue-400" />
+                    <p className="font-black text-blue-300 text-[10px] md:text-xs uppercase">Movement Speed</p>
                   </div>
-                  <p className="font-bold text-white text-sm">Speed: {character.speed.toFixed(1)}/5.0</p>
+                  <p className="font-bold text-white text-xs md:text-sm">Speed: {character.speed.toFixed(1)}/5.0</p>
                 </div>
 
                 {/* Stats */}
-                <div className="space-y-3 mb-4">
+                <div className="space-y-1.5 md:space-y-3 mb-2 md:mb-4">
                   <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-xs font-bold text-gray-300 uppercase flex items-center gap-1">
-                        <Zap className="w-3 h-3" /> Speed
+                    <div className="flex justify-between items-center mb-0.5 md:mb-1">
+                      <span className="text-[10px] md:text-xs font-bold text-gray-300 uppercase flex items-center gap-1">
+                        <Zap className="w-2.5 h-2.5 md:w-3 md:h-3" /> Speed
                       </span>
-                      <span className="text-sm font-black text-white">{character.speed.toFixed(1)}/5.0</span>
+                      <span className="text-xs md:text-sm font-black text-white">{character.speed.toFixed(1)}/5.0</span>
                     </div>
-                    <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                    <div className="w-full bg-slate-700 rounded-full h-1.5 md:h-2 overflow-hidden">
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${(character.speed / 5) * 100}%` }}
                         transition={{ delay: index * 0.1 + 0.3, duration: 0.5 }}
-                        className="h-2 rounded-full"
+                        className="h-1.5 md:h-2 rounded-full"
                         style={{
                           background: `linear-gradient(90deg, ${character.color}, ${character.color}dd)`,
                         }}
@@ -310,7 +311,7 @@ export default function CharacterSelection() {
                 {/* Select Button */}
                 <motion.div
                   whileHover={{ scale: 1.05 }}
-                  className="w-full py-2 rounded-lg font-black text-white text-sm uppercase tracking-wider"
+                  className="w-full py-1.5 md:py-2 rounded-lg font-black text-white text-xs md:text-sm uppercase tracking-wider"
                   style={{
                     background: `linear-gradient(135deg, ${character.color}, ${character.color}cc)`,
                   }}

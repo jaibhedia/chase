@@ -142,7 +142,7 @@ export default function MapSelection() {
   const mapColors = ['#10b981', '#06b6d4', '#8b5cf6']; // green, cyan, purple
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-emerald-950 to-teal-950 p-4 relative overflow-hidden">
+    <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-emerald-950 to-teal-950 p-2 md:p-4 relative overflow-y-auto md:overflow-hidden">
       {/* Animated Grid Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
         <div className="absolute inset-0" style={{
@@ -151,32 +151,32 @@ export default function MapSelection() {
         }}/>
       </div>
 
-      <div className="w-full max-w-7xl mx-auto text-center space-y-8 p-4 relative z-10">
+      <div className="w-full max-w-7xl mx-auto text-center space-y-4 md:space-y-8 p-2 md:p-4 relative z-10 pb-20 md:pb-4">
         <motion.div
           initial={{ y: -50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
         >
-          <h1 className="text-6xl md:text-7xl font-black text-white mb-4">
+          <h1 className="text-3xl md:text-7xl font-black text-white mb-2 md:mb-4">
             <span className="bg-gradient-to-r from-green-400 via-emerald-500 to-teal-600 text-transparent bg-clip-text">
               CHOOSE ARENA
             </span>
           </h1>
-          <div className="flex items-center justify-center gap-3 mb-6">
-            <div className="px-4 py-2 rounded-full bg-purple-600/30 border-2 border-purple-400">
-              <p className="font-black text-purple-300 uppercase text-sm">
+          <div className="flex items-center justify-center gap-1.5 md:gap-3 mb-3 md:mb-6">
+            <div className="px-2 md:px-4 py-1 md:py-2 rounded-full bg-purple-600/30 border md:border-2 border-purple-400">
+              <p className="font-black text-purple-300 uppercase text-[10px] md:text-sm">
                 {selectedCharacter.name}
               </p>
             </div>
-            <span className="text-2xl">⚔️</span>
-            <div className="px-4 py-2 rounded-full bg-yellow-600/30 border-2 border-yellow-400">
-              <p className="font-black text-yellow-300 uppercase text-sm">
+            <span className="text-lg md:text-2xl">⚔️</span>
+            <div className="px-2 md:px-4 py-1 md:py-2 rounded-full bg-yellow-600/30 border md:border-2 border-yellow-400">
+              <p className="font-black text-yellow-300 uppercase text-[10px] md:text-sm">
                 {gameMode === 'single-player' ? 'SINGLE PLAYER' : 'MULTIPLAYER'}
               </p>
             </div>
           </div>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-8">
           {gameMaps.map((map, index) => (
             <motion.div
               key={map.id}
@@ -197,35 +197,35 @@ export default function MapSelection() {
                 className="absolute inset-0 rounded-3xl blur-2xl opacity-50 group-hover:opacity-100 transition-opacity duration-300"
                 style={{ backgroundColor: mapColors[index] }}
               />
-              <div className="relative bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-xl rounded-3xl p-6 border-4 group-hover:scale-105 transition-all overflow-hidden"
+              <div className="relative bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-xl rounded-xl md:rounded-3xl p-3 md:p-6 border-2 md:border-4 group-hover:scale-105 transition-all overflow-hidden"
                 style={{ borderColor: `${mapColors[index]}80` }}
               >
                 {/* Map Preview with Actual Map Layout */}
-                <div className="relative aspect-video bg-slate-950 rounded-xl mb-4 overflow-hidden border-4 border-slate-600 group-hover:border-slate-500">
+                <div className="relative aspect-video bg-slate-950 rounded-lg md:rounded-xl mb-2 md:mb-4 overflow-hidden border-2 md:border-4 border-slate-600 group-hover:border-slate-500">
                   <MapPreview mapId={map.id} color={mapColors[index]} />
                 </div>
 
                 {/* Map Name */}
-                <h3 className="text-3xl font-black text-white mb-3 uppercase tracking-wider">{map.name}</h3>
+                <h3 className="text-sm md:text-3xl font-black text-white mb-1.5 md:mb-3 uppercase tracking-wider">{map.name}</h3>
                 
                 {/* Description */}
-                <p className="text-green-200 mb-4 font-bold">{map.description}</p>
+                <p className="text-green-200 mb-2 md:mb-4 font-bold text-[10px] md:text-base">{map.description}</p>
                 
                 {/* Map Stats */}
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center justify-between bg-black/30 rounded-lg p-3 border-2 border-green-500/30">
-                    <div className="flex items-center gap-2">
-                      <Maximize2 className="w-4 h-4 text-green-400" />
-                      <span className="text-sm font-bold text-green-300">Dimensions</span>
+                <div className="space-y-1 md:space-y-2 mb-2 md:mb-4">
+                  <div className="flex items-center justify-between bg-black/30 rounded-lg p-1.5 md:p-3 border md:border-2 border-green-500/30">
+                    <div className="flex items-center gap-1 md:gap-2">
+                      <Maximize2 className="w-2.5 h-2.5 md:w-4 md:h-4 text-green-400" />
+                      <span className="text-[10px] md:text-sm font-bold text-green-300">Dimensions</span>
                     </div>
-                    <span className="text-sm font-black text-white">{map.width} × {map.height}</span>
+                    <span className="text-[10px] md:text-sm font-black text-white">{map.width} × {map.height}</span>
                   </div>
-                  <div className="flex items-center justify-between bg-black/30 rounded-lg p-3 border-2 border-cyan-500/30">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">📦</span>
-                      <span className="text-sm font-bold text-cyan-300">Hiding Spots</span>
+                  <div className="flex items-center justify-between bg-black/30 rounded-lg p-1.5 md:p-3 border md:border-2 border-cyan-500/30">
+                    <div className="flex items-center gap-1 md:gap-2">
+                      <span className="text-xs md:text-lg">📦</span>
+                      <span className="text-[10px] md:text-sm font-bold text-cyan-300">Hiding Spots</span>
                     </div>
-                    <span className="text-sm font-black text-white">
+                    <span className="text-[10px] md:text-sm font-black text-white">
                       {index === 0 ? 'Many' : index === 1 ? 'Medium' : 'Few'}
                     </span>
                   </div>
@@ -234,7 +234,7 @@ export default function MapSelection() {
                 {/* Select Button */}
                 <motion.div
                   whileHover={{ scale: 1.05 }}
-                  className="w-full py-3 rounded-xl font-black text-white text-lg uppercase tracking-wider shadow-lg"
+                  className="w-full py-1.5 md:py-3 rounded-lg md:rounded-xl font-black text-white text-xs md:text-lg uppercase tracking-wider shadow-lg"
                   style={{
                     background: `linear-gradient(135deg, ${mapColors[index]}, ${mapColors[index]}cc)`,
                   }}
@@ -243,10 +243,10 @@ export default function MapSelection() {
                 </motion.div>
 
                 {/* Corner Decoration */}
-                <div className="absolute top-2 right-2 w-8 h-8 border-t-4 border-r-4 rounded-tr-lg opacity-50"
+                <div className="absolute top-1 md:top-2 right-1 md:right-2 w-4 md:w-8 h-4 md:h-8 border-t-2 md:border-t-4 border-r-2 md:border-r-4 rounded-tr-lg opacity-50"
                   style={{ borderColor: mapColors[index] }}
                 />
-                <div className="absolute bottom-2 left-2 w-8 h-8 border-b-4 border-l-4 rounded-bl-lg opacity-50"
+                <div className="absolute bottom-1 md:bottom-2 left-1 md:left-2 w-4 md:w-8 h-4 md:h-8 border-b-2 md:border-b-4 border-l-2 md:border-l-4 rounded-bl-lg opacity-50"
                   style={{ borderColor: mapColors[index] }}
                 />
               </div>

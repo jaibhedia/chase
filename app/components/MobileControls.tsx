@@ -166,15 +166,18 @@ export default function MobileControls({ onDirectionChange, onPowerUpPress, powe
           {/* Joystick background */}
           <div className="absolute inset-0 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20" />
           
-          {/* Joystick handle */}
+          {/* Joystick handle - positioned at center with offset */}
           <motion.div
-            className="absolute top-1/2 left-1/2 w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full shadow-lg -translate-x-1/2 -translate-y-1/2"
+            className="absolute left-1/2 top-1/2 w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full shadow-lg"
             style={{
-              x: joystickPosition.x,
-              y: joystickPosition.y,
+              x: joystickPosition.x - 24, // Subtract half of handle width (12/2 * 4 = 24px)
+              y: joystickPosition.y - 24, // Subtract half of handle height
             }}
             animate={{
               scale: isTouching ? 1.1 : 1,
+            }}
+            transition={{
+              scale: { duration: 0.1 }
             }}
           >
             <div className="absolute inset-1 rounded-full bg-white/20" />
