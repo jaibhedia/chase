@@ -2,16 +2,14 @@
 
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
-import { Timer, User, Gamepad2, Volume2, VolumeX, HelpCircle } from 'lucide-react';
+import { Timer, User, Gamepad2, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
 import { useGameStore } from '@/app/store/gameStore';
 import { audioManager } from '@/app/utils/audioManager';
-import TutorialPopup from './TutorialPopup';
 
 export default function GameHUD() {
   const { selectedCharacter } = useGameStore();
   const [muted, setMuted] = useState(false);
-  const [showTutorial, setShowTutorial] = useState(false);
 
   const handleToggleMute = () => {
     audioManager.toggleMute();
@@ -20,10 +18,6 @@ export default function GameHUD() {
 
   return (
     <>
-      <TutorialPopup 
-        open={showTutorial} 
-        onOpenChange={setShowTutorial}
-      />
       <motion.div
         className="fixed top-2 left-2 right-2 md:top-4 md:left-4 md:right-4 z-10"
         initial={{ opacity: 0, y: -20 }}
@@ -45,14 +39,6 @@ export default function GameHUD() {
                   ) : (
                     <Volume2 className="w-4 h-4 md:w-6 md:h-6 text-purple-400" />
                   )}
-                </button>
-                <button
-                  onClick={() => setShowTutorial(true)}
-                  className="p-1.5 md:p-2 rounded-lg bg-slate-900/50 hover:bg-slate-800/50 transition-colors"
-                  aria-label="Show Tutorial"
-                  title="Show Tutorial"
-                >
-                  <HelpCircle className="w-4 h-4 md:w-6 md:h-6 text-blue-400 hover:text-blue-300" />
                 </button>
               </div>
 

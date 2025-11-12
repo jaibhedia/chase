@@ -7,7 +7,6 @@ import { useGameStore } from '../store/gameStore';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, User, Users } from 'lucide-react';
-import TutorialPopup from '../components/TutorialPopup';
 
 export default function ModeSelection() {
   const router = useRouter();
@@ -32,9 +31,6 @@ export default function ModeSelection() {
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-purple-950 to-pink-950 p-4 relative overflow-hidden">
-      {/* Tutorial Popup */}
-      <TutorialPopup />
-      
       {/* Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
