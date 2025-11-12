@@ -70,7 +70,7 @@ export default function MobileControls({ onDirectionChange, onPowerUpPress, powe
       const deltaY = touch.clientY - centerY;
       
       const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-      const maxDistance = 40; // Maximum joystick movement
+      const maxDistance = 48; // Maximum joystick movement (20% bigger: 40 * 1.2 = 48)
       
       let x = deltaX;
       let y = deltaY;
@@ -116,42 +116,8 @@ export default function MobileControls({ onDirectionChange, onPowerUpPress, powe
 
   return (
     <div className="fixed inset-0 pointer-events-none z-[60]">
-      {/* Joystick - Left side - Smaller for mobile */}
+      {/* Power-up button - Left side */}
       <div className="absolute bottom-4 left-4 pointer-events-auto">
-        <div
-          ref={joystickRef}
-          className="relative w-24 h-24 bg-white/10 backdrop-blur-sm rounded-full border-2 border-purple-500/50 shadow-2xl"
-        >
-          {/* Joystick background */}
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20" />
-          
-          {/* Joystick handle */}
-          <motion.div
-            className="absolute top-1/2 left-1/2 w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full shadow-lg -translate-x-1/2 -translate-y-1/2"
-            style={{
-              x: joystickPosition.x,
-              y: joystickPosition.y,
-            }}
-            animate={{
-              scale: isTouching ? 1.1 : 1,
-            }}
-          >
-            <div className="absolute inset-1 rounded-full bg-white/20" />
-          </motion.div>
-          
-          {/* Directional indicators */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="absolute top-1 text-white/50 text-[10px]">↑</div>
-            <div className="absolute bottom-1 text-white/50 text-[10px]">↓</div>
-            <div className="absolute left-1 text-white/50 text-[10px]">←</div>
-            <div className="absolute right-1 text-white/50 text-[10px]">→</div>
-          </div>
-        </div>
-        <p className="text-center text-white/70 text-[10px] mt-1">Move</p>
-      </div>
-
-      {/* Power-up button - Right side - Smaller with ready state */}
-      <div className="absolute bottom-4 right-4 pointer-events-auto">
         <motion.button
           onTouchStart={(e) => {
             e.preventDefault();
@@ -189,6 +155,40 @@ export default function MobileControls({ onDirectionChange, onPowerUpPress, powe
         <p className="text-center text-white/70 text-[10px] mt-1">
           {powerUpActive ? 'Active' : powerUpReady ? 'Ready!' : '15s'}
         </p>
+      </div>
+
+      {/* Joystick - Right side - 20% bigger */}
+      <div className="absolute bottom-4 right-4 pointer-events-auto">
+        <div
+          ref={joystickRef}
+          className="relative w-32 h-32 bg-white/10 backdrop-blur-sm rounded-full border-2 border-purple-500/50 shadow-2xl"
+        >
+          {/* Joystick background */}
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20" />
+          
+          {/* Joystick handle */}
+          <motion.div
+            className="absolute top-1/2 left-1/2 w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full shadow-lg -translate-x-1/2 -translate-y-1/2"
+            style={{
+              x: joystickPosition.x,
+              y: joystickPosition.y,
+            }}
+            animate={{
+              scale: isTouching ? 1.1 : 1,
+            }}
+          >
+            <div className="absolute inset-1 rounded-full bg-white/20" />
+          </motion.div>
+          
+          {/* Directional indicators */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="absolute top-1 text-white/50 text-[10px]">↑</div>
+            <div className="absolute bottom-1 text-white/50 text-[10px]">↓</div>
+            <div className="absolute left-1 text-white/50 text-[10px]">←</div>
+            <div className="absolute right-1 text-white/50 text-[10px]">→</div>
+          </div>
+        </div>
+        <p className="text-center text-white/70 text-[10px] mt-1">Move</p>
       </div>
     </div>
   );
