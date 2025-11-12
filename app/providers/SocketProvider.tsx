@@ -14,6 +14,8 @@ interface SocketContextType {
     characterId: number;
     playerName?: string;
     isPublic?: boolean;
+    maxPlayers?: number;
+    gameTime?: number;
   }) => Promise<any>;
   joinRoom: (data: {
     roomCode: string;
@@ -21,10 +23,10 @@ interface SocketContextType {
     characterId: number;
     playerName?: string;
   }) => Promise<any>;
-  setPlayerReady: (roomCode: string, walletAddress: string) => void;
-  startGame: (roomCode: string) => void;
+  setPlayerReady: (isReady: boolean) => void;
+  startGame: () => void;
   sendGameState: (roomCode: string, gameState: any) => void;
-  sendPlayerInput: (roomCode: string, input: any) => void;
+  sendPlayerInput: (roomCode: string, playerId: string, position: any, velocity: any) => void;
   sendGameFinished: (roomCode: string, results: any) => void;
 }
 
@@ -183,15 +185,15 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const setPlayerReady = (roomCode: string, walletAddress: string) => {
+  const setPlayerReady = (isReady: boolean) => {
     if (socketRef.current) {
-      socketRef.current.emit('player-ready', { roomCode, walletAddress });
+      socketRef.current.emit('set-ready', { isReady });
     }
   };
 
-  const startGame = (roomCode: string) => {
+  const startGame = () => {
     if (socketRef.current) {
-      socketRef.current.emit('start-game', { roomCode });
+      socketRef.current.emit('start-game');
     }
   };
 
@@ -201,9 +203,14 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const sendPlayerInput = (roomCode: string, input: any) => {
+  const sendPlayerInput = (roomCode: string, playerId: string, position: any, velocity: any) => {
     if (socketRef.current) {
-      socketRef.current.emit('player-input', { roomCode, input });
+      socketRef.current.emit('player-input', { 
+        roomCode, 
+        playerId, 
+        position, 
+        velocity 
+      });
     }
   };
 

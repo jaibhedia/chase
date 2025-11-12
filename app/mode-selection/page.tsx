@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useAccount } from 'wagmi';
+import { usePrivy } from '@privy-io/react-auth';
 import { useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { motion } from 'framer-motion';
@@ -11,14 +11,14 @@ import TutorialPopup from '../components/TutorialPopup';
 
 export default function ModeSelection() {
   const router = useRouter();
-  const { isConnected } = useAccount();
+  const { authenticated } = usePrivy();
   const { setGameMode, gameMode, resetGame } = useGameStore();
 
   useEffect(() => {
-    if (!isConnected) {
+    if (!authenticated) {
       router.push('/');
     }
-  }, [isConnected, router]);
+  }, [authenticated, router]);
 
   const handleModeSelect = (mode: 'single-player' | 'multiplayer') => {
     setGameMode(mode);

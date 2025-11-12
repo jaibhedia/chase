@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useAccount } from 'wagmi';
+import { usePrivy } from '@privy-io/react-auth';
 import { motion } from 'framer-motion';
 import { Twitter, Send } from 'lucide-react';
 import WalletConnect from './components/WalletConnect';
@@ -10,7 +10,7 @@ import { useGameStore } from './store/gameStore';
 import { useEffect, useRef, useState } from 'react';
 
 export default function Home() {
-  const { isConnected } = useAccount();
+  const { authenticated } = usePrivy();
   const router = useRouter();
   const { selectedCharacter } = useGameStore();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -73,7 +73,7 @@ export default function Home() {
           animate={{ scale: 1 }}
           transition={{ type: "spring", stiffness: 200, delay: 0.4 }}
         >
-          {isConnected ? (
+          {authenticated ? (
             <Button
               onClick={() => router.push('/mode-selection')}
               className="px-6 py-3 md:px-10 md:py-5 text-lg md:text-2xl font-black bg-black/80 border-4 border-white text-white rounded-2xl hover:bg-white hover:text-black transition-all duration-300 uppercase tracking-wider shadow-none backdrop-blur-sm"

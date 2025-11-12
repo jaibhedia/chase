@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useAccount } from 'wagmi';
+import { usePrivy } from '@privy-io/react-auth';
 import { useEffect, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import GameCanvas from '../components/GameCanvas';
@@ -10,18 +10,18 @@ import MobileControls from '../components/MobileControls';
 
 export default function Game() {
   const router = useRouter();
-  const { isConnected } = useAccount();
+  const { authenticated } = usePrivy();
   const { gameMode, selectedCharacter, selectedMap, gamePhase } = useGameStore();
   const [mobileDirection, setMobileDirection] = useState({ x: 0, y: 0 });
   const [mobilePowerUpPressed, setMobilePowerUpPressed] = useState(false);
 
   useEffect(() => {
-    if (!isConnected) {
+    if (!authenticated) {
       router.push('/');
     } else if (!gameMode || !selectedCharacter || !selectedMap) {
       router.push('/');
     }
-  }, [isConnected, gameMode, selectedCharacter, selectedMap, router]);
+  }, [authenticated, gameMode, selectedCharacter, selectedMap, router]);
 
   // Simulate keyboard events from mobile controls
   useEffect(() => {

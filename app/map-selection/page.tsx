@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useAccount } from 'wagmi';
+import { usePrivy } from '@privy-io/react-auth';
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { gameMaps } from '../data/maps';
@@ -113,18 +113,18 @@ const MapPreview = ({ mapId, color }: { mapId: string, color: string }) => {
 
 export default function MapSelection() {
   const router = useRouter();
-  const { isConnected } = useAccount();
+  const { authenticated } = usePrivy();
   const { gameMode, selectedCharacter, setMap } = useGameStore();
 
   useEffect(() => {
-    if (!isConnected) {
+    if (!authenticated) {
       router.push('/');
     } else if (!gameMode) {
       router.push('/mode-selection');
     } else if (!selectedCharacter) {
       router.push('/character-selection');
     }
-  }, [isConnected, gameMode, selectedCharacter, router]);
+  }, [authenticated, gameMode, selectedCharacter, router]);
 
   const handleMapSelect = (map: any) => {
     setMap(map);

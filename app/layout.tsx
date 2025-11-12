@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { Web3Provider } from "./providers/Web3Provider";
+import { PrivyProvider } from "./providers/PrivyProvider";
 import { SocketProvider } from "./providers/SocketProvider";
 import { AudioInitializer } from "./components/AudioInitializer";
 import { Analytics } from "@vercel/analytics/react";
 
 const inter = Inter({ subsets: ["latin"] });
 
-// Force dynamic rendering for all pages due to Web3Modal
+// Force dynamic rendering for all pages due to Privy
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
@@ -38,13 +38,13 @@ export default function RootLayout({
         `}} />
       </head>
       <body className={inter.className}>
-        <Web3Provider>
+        <PrivyProvider>
           <SocketProvider>
             <AudioInitializer />
             {children}
             <Analytics />
           </SocketProvider>
-        </Web3Provider>
+        </PrivyProvider>
       </body>
     </html>
   );

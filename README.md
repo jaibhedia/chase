@@ -1,12 +1,12 @@
 # Chase - Crypto Web Game
 
-A fast-paced **real-time multiplayer** chase game built with Next.js, Socket.io, and Supabase featuring WalletConnect authentication and engaging top-down gameplay.
+A fast-paced **real-time multiplayer** chase game built with Next.js, Socket.io, and Supabase featuring Privy authentication and engaging top-down gameplay.
 
 ## Features
 
-- 🔐 **WalletConnect Integration**: Secure crypto wallet authentication
-- � **Real-time Multiplayer**: Play with friends using Socket.io
-- �🎮 **Game Modes**: Choose Single Player or Multiplayer
+- 🔐 **Privy Authentication**: Secure wallet & email authentication
+- 🌐 **Real-time Multiplayer**: Play with friends using Socket.io
+- 🎮 **Game Modes**: Choose Single Player or Multiplayer
 - 👤 **Unique Characters**: 6 characters with unique power-ups
 - 💥 **Power-Up System**: 6 special abilities (Speed Boost, Earthquake, Punch, Teleport, Invisibility, Force Field)
 - 🗺️ **Multiple Maps**: Three different environments to play in
@@ -66,14 +66,14 @@ This will install all dependencies and create environment file templates.
    - Run SQL schema from `/supabase/schema.sql`
    - Update `.env.local` and `server/.env` with your Supabase credentials
 
-4. **Get WalletConnect Project ID**:
-   - Visit [WalletConnect Cloud](https://cloud.walletconnect.com/)
-   - Create a new project
-   - Copy your Project ID
+4. **Get Privy App ID**:
+   - Visit [Privy Dashboard](https://dashboard.privy.io/)
+   - Create a new app
+   - Copy your App ID
 
 5. **Update `.env.local`**:
    ```
-   NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_actual_project_id
+   NEXT_PUBLIC_PRIVY_APP_ID=your_privy_app_id
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
    NEXT_PUBLIC_SOCKET_URL=http://localhost:3001
@@ -122,10 +122,10 @@ This will install all dependencies and create environment file templates.
 - **Framework**: Next.js 14 with TypeScript
 - **Styling**: Tailwind CSS
 - **State Management**: Zustand
-- **Web3**: WalletConnect, Wagmi, Viem
+- **Authentication**: Privy
 - **Game Rendering**: HTML5 Canvas
 - **Real-time Communication**: Socket.io Client
-- **Wallet Support**: MetaMask, WalletConnect, and more
+- **Wallet Support**: MetaMask, Coinbase Wallet, and more via Privy
 
 ### Backend
 - **Server**: Node.js + Express
@@ -137,10 +137,11 @@ This will install all dependencies and create environment file templates.
 ## Project Structure
 
 ```
+```
 Chase/
 ├── app/
 │   ├── components/          # React components
-│   │   ├── WalletConnect.tsx
+│   │   ├── WalletConnect.tsx  # Privy authentication UI
 │   │   ├── GameCanvas.tsx
 │   │   ├── GameHUD.tsx
 │   │   └── AudioInitializer.tsx
@@ -150,7 +151,8 @@ Chase/
 │   ├── hooks/              # Custom hooks
 │   │   └── useSocket.ts     # Socket.io multiplayer hook
 │   ├── providers/          # Context providers
-│   │   └── Web3Provider.tsx
+│   │   ├── PrivyProvider.tsx  # Privy authentication provider
+│   │   └── SocketProvider.tsx
 │   ├── store/              # State management
 │   │   └── gameStore.ts
 │   ├── utils/              # Game logic
@@ -163,6 +165,7 @@ Chase/
 │   ├── game/               # Main game page
 │   ├── results/            # Results page
 │   └── page.tsx            # Home page
+```
 ├── server/                 # Backend server
 │   ├── index.ts            # Socket.io server
 │   ├── package.json

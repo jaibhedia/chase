@@ -82,13 +82,33 @@ function findSafeSpawnPosition(
   return { x: mapWidth / 2, y: mapHeight / 2 };
 }
 
+// Track if game is already initialized to prevent double initialization
+let isGameInitialized = false;
+
 export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, serverStartTime?: number) {
+  if (isGameInitialized) {
+    console.warn('⚠️ Game already initialized, skipping duplicate initialization');
+    return () => {}; // Return empty cleanup function
+  }
+  
+  isGameInitialized = true;
+  console.log('🎮 Starting game initialization...');
+  
   const store = useGameStore.getState();
-  const { gameMode, selectedCharacter, selectedMap, roomPlayers, walletAddress, setGamePhase, setPlayers, setGameObjects, setTimeRemaining, setCountdownTimer, setGameResult, updatePlayer } = store;
+  const { gameMode, selectedCharacter, selectedMap, roomPlayers, walletAddress, setGamePhase, setPlayers, setGameObjects, setTimeRemaining, setCountdownTimer, setGameResult, updatePlayer, setRoomPlayers } = store;
 
-  if (!gameMode || !selectedCharacter || !selectedMap) return;
+  if (!gameMode || !selectedCharacter || !selectedMap) {
+    isGameInitialized = false; // Reset if invalid state
+    return () => {};
+  }
 
-  console.log('🎮 Initializing game:', { gameMode, playersInRoom: roomPlayers?.length || 0 });
+  console.log('🎮 Initializing game:', { gameMode, playersInRoom: roomPlayers?.length || 0, roomPlayers });
+
+  // Clear room players if in single-player mode to prevent any leftover multiplayer data
+  if (gameMode === 'single-player') {
+    console.log('🧹 Clearing roomPlayers for single-player mode');
+    setRoomPlayers([]);
+  }
 
   // Clear any previously locked characters from past games
   if (gameMode === 'single-player') {
@@ -96,6 +116,10 @@ export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCo
       store.unlockCharacter(charId);
     });
   }
+
+  // Clear existing players from store to prevent duplicates
+  console.log('🧹 Clearing existing players from store');
+  setPlayers([]);
 
   // Use canvas dimensions directly - no scaling needed
   // Fallback to reasonable defaults if canvas not sized yet
@@ -125,6 +149,8 @@ export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCo
 
   const players: Player[] = [];
   
+  console.log('🎮 Game mode:', gameMode, 'Room players:', roomPlayers?.length || 0);
+  
   // Spawn human player in a safe position
   const humanSpawn = findSafeSpawnPosition(mapWidth, mapHeight, objects);
   const humanPlayer: Player = {
@@ -148,6 +174,7 @@ export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCo
 
   // Only add bots in single-player mode
   if (gameMode === 'single-player') {
+    console.log('🤖 Spawning bots for single-player mode');
     // Get available characters for bots (excluding the human player's character)
     const availableCharacters = characters.filter(char => char.id !== selectedCharacter.id);
     
@@ -184,15 +211,22 @@ export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCo
   } else if (gameMode === 'multiplayer' && roomPlayers && roomPlayers.length > 0) {
     // MULTIPLAYER: Create players from room data
     console.log('🎮 Creating multiplayer players from room data:', roomPlayers.length, 'players');
+    console.log('🔑 Local wallet address:', walletAddress);
     
     roomPlayers.forEach((roomPlayer: any, index: number) => {
       // Skip if this is the local player (already added)
-      if (roomPlayer.wallet_address === walletAddress) return;
+      const isLocalPlayer = roomPlayer.wallet_address === walletAddress;
+      console.log('👤 Room player:', roomPlayer.player_name, 'wallet:', roomPlayer.wallet_address, 'isLocal:', isLocalPlayer);
+      
+      if (isLocalPlayer) {
+        console.log('⏭️  Skipping local player');
+        return;
+      }
       
       // Find character by ID
       const character = characters.find(c => c.id === `character-${roomPlayer.character_id}`);
       if (!character) {
-        console.warn('Character not found for ID:', roomPlayer.character_id);
+        console.warn('⚠️ Character not found for ID:', roomPlayer.character_id);
         return;
       }
       
@@ -219,8 +253,11 @@ export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCo
       console.log('✅ Added multiplayer player:', roomPlayer.player_name, character.name);
     });
     
-    console.log('🎮 Total players in game:', players.length);
+    console.log('🎮 Total players in multiplayer game:', players.length);
   }
+
+  console.log('🎮 Final player count:', players.length, 'Mode:', gameMode);
+  console.log('👥 Players:', players.map(p => ({ id: p.id, name: p.character.name, isBot: p.isBot })));
 
   gameState.players = players;
   setPlayers(players);
@@ -356,6 +393,9 @@ export function initializeGame(canvas: HTMLCanvasElement, ctx: CanvasRenderingCo
   // Cleanup function
   return () => {
     console.log('🧹 Cleaning up game engine');
+    
+    // Reset initialization flag to allow next game to initialize
+    isGameInitialized = false;
     
     window.removeEventListener('keydown', handleKeyDown);
     window.removeEventListener('keyup', handleKeyUp);

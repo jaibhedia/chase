@@ -1,7 +1,6 @@
 'use client';
 
-import { useWeb3Modal } from '@web3modal/wagmi/react';
-import { useAccount, useDisconnect } from 'wagmi';
+import { usePrivy } from '@privy-io/react-auth';
 import { useEffect } from 'react';
 import { Wallet, LogOut } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -9,20 +8,30 @@ import { useGameStore } from '../store/gameStore';
 import { Button } from '@/components/ui/button';
 
 export default function WalletConnect() {
-  const { open } = useWeb3Modal();
-  const { address, isConnected } = useAccount();
-  const { disconnect } = useDisconnect();
+  const { ready, authenticated, user, login, logout } = usePrivy();
   const setWalletAddress = useGameStore((state) => state.setWalletAddress);
 
   useEffect(() => {
-    if (isConnected && address) {
-      setWalletAddress(address);
+    if (authenticated && user?.wallet?.address) {
+      setWalletAddress(user.wallet.address);
     } else {
       setWalletAddress(null);
     }
-  }, [isConnected, address, setWalletAddress]);
+  }, [authenticated, user, setWalletAddress]);
 
-  if (isConnected) {
+  // Don't render until Privy is ready
+  if (!ready) {
+    return (
+      <div className="h-12 w-40 bg-gradient-to-r from-purple-900/40 to-blue-900/40 border-2 border-purple-500/50 rounded-xl animate-pulse" />
+    );
+  }
+
+  if (authenticated && user) {
+    const address = user.wallet?.address || user.email?.address || 'Connected';
+    const displayText = user.wallet?.address 
+      ? `${address.slice(0, 6)}...${address.slice(-4)}`
+      : user.email?.address || 'Connected';
+
     return (
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
@@ -31,11 +40,11 @@ export default function WalletConnect() {
       >
         <div className="bg-gradient-to-r from-green-900/40 to-emerald-900/40 border-2 border-green-500/50 rounded-xl px-6 py-3 backdrop-blur-sm">
           <p className="text-green-400 font-mono text-lg font-semibold">
-            {address?.slice(0, 6)}...{address?.slice(-4)}
+            {displayText}
           </p>
         </div>
         <Button
-          onClick={() => disconnect()}
+          onClick={logout}
           variant="destructive"
           size="lg"
           className="gap-2"
@@ -49,7 +58,7 @@ export default function WalletConnect() {
 
   return (
     <Button
-      onClick={() => open()}
+      onClick={login}
       variant="game"
       size="xl"
       className="gap-2"

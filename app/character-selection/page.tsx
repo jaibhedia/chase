@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useAccount } from 'wagmi';
+import { usePrivy } from '@privy-io/react-auth';
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { characters } from '../data/characters';
@@ -134,16 +134,16 @@ const CharacterSprite = ({ character }: { character: any }) => {
 
 export default function CharacterSelection() {
   const router = useRouter();
-  const { isConnected } = useAccount();
+  const { authenticated } = usePrivy();
   const { gameMode, setCharacter, lockedCharacters, lockCharacter } = useGameStore();
 
   useEffect(() => {
-    if (!isConnected) {
+    if (!authenticated) {
       router.push('/');
     } else if (!gameMode) {
       router.push('/mode-selection');
     }
-  }, [isConnected, gameMode, router]);
+  }, [authenticated, gameMode, router]);
 
   const handleCharacterSelect = (character: any) => {
     // Check if character is already locked

@@ -286,7 +286,7 @@ export default function MultiplayerLobby() {
 
   const handleToggleReady = () => {
     if (!isReady && roomCode) {
-      setPlayerReady(roomCode, walletAddress);
+      setPlayerReady(true);
       setIsReady(true);
     }
   };
@@ -589,7 +589,7 @@ export default function MultiplayerLobby() {
         {/* Start Game Button (Host Only) */}
         {isHost && canStart && (
           <Button
-            onClick={() => startGame(roomCode)}
+            onClick={() => startGame()}
             className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-6 text-xl mb-4 animate-pulse"
           >
             🚀 START GAME
