@@ -106,9 +106,10 @@ export default function GameCanvas() {
   return (
     <canvas
       ref={canvasRef}
-      className="w-full h-full bg-slate-950"
+      className="w-full h-full bg-slate-950 touch-none"
       style={{
-        display: 'block'
+        display: 'block',
+        touchAction: 'none'
       }}
     />
   );

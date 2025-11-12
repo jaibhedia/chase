@@ -28,6 +28,7 @@ class AudioManager {
     // Background music (generated using tone.js concepts)
     this.sounds.set('bgm-menu', new Howl({
       src: [this.generateTone(440, 2, 'sine')],
+      format: ['wav'],
       loop: true,
       volume: this.musicVolume * 0.5,
     }));
@@ -35,52 +36,62 @@ class AudioManager {
     // UI sounds
     this.sounds.set('click', new Howl({
       src: [this.generateTone(800, 0.1, 'square')],
+      format: ['wav'],
       volume: this.sfxVolume * 0.3,
     }));
 
     this.sounds.set('hover', new Howl({
       src: [this.generateTone(600, 0.05, 'sine')],
+      format: ['wav'],
       volume: this.sfxVolume * 0.2,
     }));
 
     this.sounds.set('select', new Howl({
       src: [this.generateTone(1000, 0.2, 'triangle')],
+      format: ['wav'],
       volume: this.sfxVolume * 0.4,
     }));
 
     this.sounds.set('countdown', new Howl({
       src: [this.generateTone(500, 0.3, 'sawtooth')],
+      format: ['wav'],
       volume: this.sfxVolume * 0.6,
     }));
 
     this.sounds.set('victory', new Howl({
       src: [this.generateChord([523, 659, 784], 1)],
+      format: ['wav'],
       volume: this.sfxVolume * 0.7,
     }));
 
     this.sounds.set('defeat', new Howl({
       src: [this.generateChord([200, 150, 100], 1)],
+      format: ['wav'],
       volume: this.sfxVolume * 0.7,
     }));
 
     // Game sounds
     this.sounds.set('hide', new Howl({
       src: [this.generateTone(300, 0.3, 'sine')],
+      format: ['wav'],
       volume: this.sfxVolume * 0.5,
     }));
 
     this.sounds.set('caught', new Howl({
       src: [this.generateTone(200, 0.5, 'sawtooth')],
+      format: ['wav'],
       volume: this.sfxVolume * 0.8,
     }));
 
     this.sounds.set('footstep', new Howl({
       src: [this.generateNoise(0.05)],
+      format: ['wav'],
       volume: this.sfxVolume * 0.2,
     }));
 
     this.sounds.set('heartbeat', new Howl({
       src: [this.generateTone(80, 0.3, 'sine')],
+      format: ['wav'],
       volume: this.sfxVolume * 0.6,
       loop: true,
     }));
